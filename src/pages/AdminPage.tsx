@@ -270,25 +270,100 @@ export default function AdminPage() {
 
         {/* SECURITY */}
         {activeTab === "requests" && (
-          <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-4">
+  <motion.div
+    key="requests"
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="space-y-6"
+  >
 
-            {resetRequests.map(r => (
-              <div key={r.id} className="flex justify-between border-b py-3">
+    {resetRequests.length === 0 ? (
+      <div className="card-modern p-12 text-center border-dashed">
+        <Clock size={40} className="mx-auto text-stone-200 mb-3" />
+        <p className="text-stone-400 italic">
+          No password reset requests.
+        </p>
+      </div>
+    ) : (
+      resetRequests.map(request => (
+        <div
+          key={request.id}
+          className="card-modern p-6 flex items-center justify-between"
+        >
 
-                <div>
-                  <b>{r.username}</b>
-                  <div className="text-xs text-stone-400">{r.email}</div>
-                </div>
+          <div className="flex items-center gap-4">
 
-                <button onClick={() => completeRequest(r.id)}>
-                  <Check size={16} />
-                </button>
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
+              <Key size={22} />
+            </div>
 
-              </div>
-            ))}
+            <div>
+              <h4 className="font-bold text-stone-800">
+                {request.username}
+              </h4>
 
-          </motion.div>
-        )}
+              <p className="text-sm text-stone-400">
+                {request.email}
+              </p>
+
+              <p className="text-[10px] text-stone-300 uppercase font-bold mt-1">
+                Requested on {new Date(request.createdAt).toLocaleString()}
+              </p>
+            </div>
+
+          </div>
+
+          {request.status === "pending" ? (
+            <button
+              onClick={async () => {
+                await updateDoc(
+                  doc(db, "resetRequests", request.id),
+                  { status: "completed" }
+                );
+                toast.success("Request completed");
+              }}
+              className="btn-primary px-4 py-2 text-sm"
+            >
+              Complete
+            </button>
+          ) : (
+            <span className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold">
+              Resolved
+            </span>
+          )}
+
+        </div>
+      ))
+    )}
+
+  </motion.div>
+)}
+
+          {request.status === "pending" ? (
+            <button
+              onClick={async () => {
+                await updateDoc(
+                  doc(db, "resetRequests", request.id),
+                  { status: "completed" }
+                );
+                toast.success("Request completed");
+              }}
+              className="btn-primary px-4 py-2 text-sm"
+            >
+              Complete
+            </button>
+          ) : (
+            <span className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold">
+              Resolved
+            </span>
+          )}
+
+        </div>
+      ))
+    )}
+
+  </motion.div>
+)}
 
         {/* MESSAGES */}
         {activeTab === "messages" && (
