@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './ThemeContext';
 
@@ -16,10 +18,11 @@ import AdminPage from './pages/AdminPage';
 import AddToHomeScreen from './pages/AddToHomeScreen';
 import ContactPage from './pages/ContactPage';
 
-/* ✅ Push */
-import {
-  listenForegroundNotifications
-} from "./services/firebase-messaging";
+import { listenForegroundNotifications } from "./services/firebase-messaging";
+
+/* 🔥 NEW */
+import { db } from "./services/firebase";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 
 /* --------------------------------------- */
 
@@ -31,8 +34,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-stone-50 dark:bg-stone-950">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-stone-800 dark:border-stone-200"></div>
+      <div className="flex items-center justify-center min-h-screen bg-stone-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-stone-800"></div>
       </div>
     );
   }
@@ -47,9 +50,44 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 
 export default function App() {
 
-  /* استقبال الاشعارات والتطبيق مفتوح */
+  /* ✅ FCM foreground push */
   useEffect(() => {
     listenForegroundNotifications();
+  }, []);
+
+  /* 🔥 REALTIME ADMIN NOTIFICATIONS */
+  useEffect(() => {
+
+    const q = query(
+      collection(db, "admin_notifications"),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+
+      snap.docChanges().forEach(change => {
+
+        if (change.type === "added") {
+
+          const data = change.doc.data();
+
+          toast.success(
+            `${data.title}\n${data.body}`,
+            {
+              duration: 6000,
+              position: "top-center"
+            }
+          );
+
+        }
+
+      });
+
+    });
+
+    return () => unsub();
+
   }, []);
 
   return (
@@ -57,14 +95,13 @@ export default function App() {
       <ThemeProvider>
         <Router>
 
-          {/* ✅ Banner كبير أعلى التطبيق */}
           <NotificationBanner />
 
           <Toaster
             position="top-center"
             toastOptions={{
               className:
-                'rounded-2xl font-sans font-medium text-sm dark:bg-stone-900 dark:text-stone-100 dark:border dark:border-stone-800',
+                'rounded-2xl font-sans font-medium text-sm'
             }}
           />
 
