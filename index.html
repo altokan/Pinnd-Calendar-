@@ -4,33 +4,36 @@
   <meta charset="UTF-8" />
 
   <!-- Responsive -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- Title -->
+  <!-- App Title -->
   <title>Pinned Calendar</title>
 
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- Theme -->
+  <!-- Theme Color -->
   <meta name="theme-color" content="#ffffff" />
 
-  <!-- iOS PWA Support -->
+  <!-- iOS PWA Mode -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Pinned Calendar" />
 
   <!-- Icons -->
-  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
 
-  <!-- Prevent zoom issues -->
+  <!-- Fix iOS zoom issues -->
   <meta name="format-detection" content="telephone=no" />
+
 </head>
 
 <body>
+
   <div id="root"></div>
 
   <!-- React App -->
@@ -40,12 +43,12 @@
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .then(() => console.log("Service Worker Registered"))
-          .catch(err => console.log("SW failed:", err));
+        navigator.serviceWorker.register("/sw.js")
+          .then(() => console.log("SW Registered"))
+          .catch(() => console.log("SW Failed"));
       });
     }
   </script>
+
 </body>
 </html>
