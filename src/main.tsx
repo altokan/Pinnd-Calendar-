@@ -4,15 +4,16 @@ import App from './App.tsx';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
-/* ✅ Firebase Push Notifications */
+/* ✅ Push Notifications */
 import {
-  requestNotificationPermission,
-  listenForegroundMessages
-} from './services/firebase-messaging';
+  requestPushPermission,
+  listenForegroundNotifications
+} from './services/push';
 
-requestNotificationPermission();
-listenForegroundMessages();
-/* ============================== */
+/* تشغيل نظام الاشعارات */
+requestPushPermission();
+listenForegroundNotifications();
+/* ====================== */
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
