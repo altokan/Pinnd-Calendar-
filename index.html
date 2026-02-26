@@ -1,39 +1,51 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+  <meta charset="UTF-8" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Responsive -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <title>Pinned Calendar</title>
+  <!-- Title -->
+  <title>Pinned Calendar</title>
 
-    <!-- PWA -->
-    <link rel="manifest" href="/manifest.json" />
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
 
-    <!-- iPhone App Mode -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Pinned Calendar" />
+  <!-- Theme -->
+  <meta name="theme-color" content="#ffffff" />
 
-    <!-- App Icons -->
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+  <!-- iOS PWA Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Pinned Calendar" />
 
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#ffffff" />
-  </head>
+  <!-- Icons -->
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
 
-  <body>
-    <div id="root"></div>
+  <!-- Prevent zoom issues -->
+  <meta name="format-detection" content="telephone=no" />
+</head>
 
-    <script type="module" src="/src/main.tsx"></script>
+<body>
+  <div id="root"></div>
 
-    <!-- Service Worker Register -->
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js");
-        });
-      }
-    </script>
-  </body>
+  <!-- React App -->
+  <script type="module" src="/src/main.tsx"></script>
+
+  <!-- Service Worker -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then(() => console.log("Service Worker Registered"))
+          .catch(err => console.log("SW failed:", err));
+      });
+    }
+  </script>
+</body>
 </html>
