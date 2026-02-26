@@ -20,23 +20,18 @@ import {
   Users,
   Key,
   Trash2,
-  UserPlus,
   Search,
   Check,
-  X,
   Clock,
   Mail,
   Settings,
-  Edit2,
   Eye,
   EyeOff,
-  Bell,
-  Upload
+  Bell
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "motion/react";
 import toast from "react-hot-toast";
-import PasswordInput from "../components/PasswordInput";
 import { cn } from "../lib/utils";
 
 export default function AdminPage() {
@@ -55,10 +50,9 @@ export default function AdminPage() {
 
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const prevMsgCount = useRef(0);
 
-  /* ---------------- LISTENERS ---------------- */
+  /* ================= LISTENERS ================= */
 
   useEffect(() => {
 
@@ -102,7 +96,7 @@ export default function AdminPage() {
 
   }, []);
 
-  /* ---------------- MEMBERS ---------------- */
+  /* ================= MEMBERS ================= */
 
   const deleteUser = async (uid: string) => {
     if (!confirm("Delete user?")) return;
@@ -115,14 +109,14 @@ export default function AdminPage() {
     u.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* ---------------- SECURITY ---------------- */
+  /* ================= SECURITY ================= */
 
   const completeRequest = async (id: string) => {
     await updateDoc(doc(db, "resetRequests", id), { status: "completed" });
     toast.success("Request completed");
   };
 
-  /* ---------------- MESSAGES ---------------- */
+  /* ================= MESSAGES ================= */
 
   const unreadCount = messages.filter(m => !m.read).length;
 
@@ -145,7 +139,7 @@ export default function AdminPage() {
     toast.success("All messages deleted");
   };
 
-  /* ---------------- SETTINGS ---------------- */
+  /* ================= SETTINGS ================= */
 
   const uploadAppIcon = async (e: any) => {
     const file = e.target.files[0];
@@ -165,7 +159,7 @@ export default function AdminPage() {
     toast.success("Settings saved");
   };
 
-  /* ---------------- NOTIFICATIONS ---------------- */
+  /* ================= NOTIFICATIONS ================= */
 
   const sendNotification = async (e: any) => {
     e.preventDefault();
@@ -180,7 +174,7 @@ export default function AdminPage() {
     e.target.reset();
   };
 
-  /* ---------------- UI ---------------- */
+  /* ================= UI ================= */
 
   return (
     <div className="space-y-8">
@@ -270,100 +264,30 @@ export default function AdminPage() {
 
         {/* SECURITY */}
         {activeTab === "requests" && (
-  <motion.div
-    key="requests"
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="space-y-6"
-  >
+          <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-4">
 
-    {resetRequests.length === 0 ? (
-      <div className="card-modern p-12 text-center border-dashed">
-        <Clock size={40} className="mx-auto text-stone-200 mb-3" />
-        <p className="text-stone-400 italic">
-          No password reset requests.
-        </p>
-      </div>
-    ) : (
-      resetRequests.map(request => (
-        <div
-          key={request.id}
-          className="card-modern p-6 flex items-center justify-between"
-        >
+            {resetRequests.length === 0 ? (
+              <div className="text-center text-stone-400 py-10">
+                No password reset requests.
+              </div>
+            ) : (
+              resetRequests.map(r => (
+                <div key={r.id} className="flex justify-between border-b py-3">
+                  <div>
+                    <b>{r.username}</b>
+                    <div className="text-xs text-stone-400">{r.email}</div>
+                  </div>
+                  {r.status !== "completed" && (
+                    <button onClick={() => completeRequest(r.id)}>
+                      <Check size={16} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
 
-          <div className="flex items-center gap-4">
-
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
-              <Key size={22} />
-            </div>
-
-            <div>
-              <h4 className="font-bold text-stone-800">
-                {request.username}
-              </h4>
-
-              <p className="text-sm text-stone-400">
-                {request.email}
-              </p>
-
-              <p className="text-[10px] text-stone-300 uppercase font-bold mt-1">
-                Requested on {new Date(request.createdAt).toLocaleString()}
-              </p>
-            </div>
-
-          </div>
-
-          {request.status === "pending" ? (
-            <button
-              onClick={async () => {
-                await updateDoc(
-                  doc(db, "resetRequests", request.id),
-                  { status: "completed" }
-                );
-                toast.success("Request completed");
-              }}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              Complete
-            </button>
-          ) : (
-            <span className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold">
-              Resolved
-            </span>
-          )}
-
-        </div>
-      ))
-    )}
-
-  </motion.div>
-)}
-
-          {request.status === "pending" ? (
-            <button
-              onClick={async () => {
-                await updateDoc(
-                  doc(db, "resetRequests", request.id),
-                  { status: "completed" }
-                );
-                toast.success("Request completed");
-              }}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              Complete
-            </button>
-          ) : (
-            <span className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold">
-              Resolved
-            </span>
-          )}
-
-        </div>
-      ))
-    )}
-
-  </motion.div>
-)}
+          </motion.div>
+        )}
 
         {/* MESSAGES */}
         {activeTab === "messages" && (
@@ -423,11 +347,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={uploadAppIcon}
-              />
+              <input type="file" accept="image/*" onChange={uploadAppIcon} />
 
             </div>
 
