@@ -9,6 +9,7 @@ import {
   persistentMultipleTabManager,
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging } from "firebase/messaging";
 
 /* -------------------------------------------------- */
 /* ✅ Check Firebase Config                           */
@@ -22,7 +23,7 @@ export const isFirebaseConfigured =
 /* ✅ Firebase Config                                 */
 /* -------------------------------------------------- */
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -36,14 +37,7 @@ const firebaseConfig = {
 /* ✅ Initialize App                                  */
 /* -------------------------------------------------- */
 
-let app;
-
-try {
-  app = initializeApp(firebaseConfig);
-} catch (error) {
-  console.error("Firebase initialization failed:", error);
-  throw error;
-}
+const app = initializeApp(firebaseConfig);
 
 /* -------------------------------------------------- */
 /* ✅ Auth                                            */
@@ -63,18 +57,33 @@ try {
       tabManager: persistentMultipleTabManager(),
     }),
   });
-} catch (error) {
-  console.warn("Persistent cache failed → fallback Firestore");
+} catch {
   db = getFirestore(app);
 }
 
 export { db };
 
 /* -------------------------------------------------- */
-/* ✅ Storage (FIX IMAGE UPLOAD BUG)                  */
+/* ✅ Storage                                         */
 /* -------------------------------------------------- */
 
 export const storage = getStorage(app);
+
+/* -------------------------------------------------- */
+/* ✅ Messaging (Push Notifications)                  */
+/* -------------------------------------------------- */
+
+let messaging: any = null;
+
+if (typeof window !== "undefined") {
+  try {
+    messaging = getMessaging(app);
+  } catch (e) {
+    console.warn("Messaging not supported");
+  }
+}
+
+export { messaging };
 
 /* -------------------------------------------------- */
 
