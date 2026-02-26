@@ -13,21 +13,24 @@
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- Theme -->
+  <!-- Theme Color -->
   <meta name="theme-color" content="#ffffff" />
 
-  <!-- iOS App Mode -->
+  <!-- iOS Native App Mode -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Pinned Calendar" />
 
-  <!-- ✅ IMPORTANT: iPhone Icon -->
+  <!-- iPhone App Icon -->
   <link rel="apple-touch-icon" sizes="180x180" href="/icon-512.png" />
 
   <!-- Standard Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+
+  <!-- iOS Splash Screen -->
+  <link rel="apple-touch-startup-image" href="/icon-512.png" />
 
   <!-- Prevent auto zoom -->
   <meta name="format-detection" content="telephone=no" />
@@ -41,11 +44,12 @@
   <!-- React App -->
   <script type="module" src="/src/main.tsx"></script>
 
-  <!-- Service Worker -->
+  <!-- Service Worker Registration -->
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js")
+        navigator.serviceWorker
+          .register("/sw.js")
           .then(() => console.log("Service Worker Registered"))
           .catch(err => console.log("SW Error:", err));
       });
