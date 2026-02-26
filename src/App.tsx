@@ -3,7 +3,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './ThemeContext';
+
 import Layout from './components/Layout';
+import NotificationBanner from './components/NotificationBanner';
+
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -15,7 +18,6 @@ import ContactPage from './pages/ContactPage';
 
 /* ✅ Push */
 import {
-  requestPushPermission,
   listenForegroundNotifications
 } from "./services/firebase-messaging";
 
@@ -45,41 +47,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 
 export default function App() {
 
-  /* ✅ استقبال الإشعارات أثناء فتح التطبيق */
+  /* استقبال الاشعارات والتطبيق مفتوح */
   useEffect(() => {
     listenForegroundNotifications();
   }, []);
-
-  /* ✅ زر طلب الإذن */
-  const enableNotifications = async () => {
-    await requestPushPermission();
-    alert("Notifications Enabled ✅");
-  };
 
   return (
     <AuthProvider>
       <ThemeProvider>
         <Router>
 
-          {/* ✅ زر التفعيل (iPhone Required) */}
-          <button
-            onClick={enableNotifications}
-            style={{
-              position: "fixed",
-              bottom: 20,
-              right: 20,
-              zIndex: 9999,
-              background: "#4f46e5",
-              color: "white",
-              border: "none",
-              padding: "12px 16px",
-              borderRadius: "14px",
-              fontSize: "14px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-            }}
-          >
-            Enable Notifications
-          </button>
+          {/* ✅ Banner كبير أعلى التطبيق */}
+          <NotificationBanner />
 
           <Toaster
             position="top-center"
