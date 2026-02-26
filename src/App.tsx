@@ -1,35 +1,42 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import toast from 'react-hot-toast';
+import React, { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 
-import { AuthProvider, useAuth } from './hooks/useAuth';
-import { ThemeProvider } from './ThemeContext';
+import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { ThemeProvider } from "./ThemeContext";
 
-import Layout from './components/Layout';
-import NotificationBanner from './components/NotificationBanner';
+import Layout from "./components/Layout";
+import NotificationBanner from "./components/NotificationBanner";
 
-import CalendarPage from './pages/CalendarPage';
-import LoginPage from './pages/LoginPage';
-import SignupPage from './pages/SignupPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ProfilePage from './pages/ProfilePage';
-import AdminPage from './pages/AdminPage';
-import AddToHomeScreen from './pages/AddToHomeScreen';
-import ContactPage from './pages/ContactPage';
+import CalendarPage from "./pages/CalendarPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ProfilePage from "./pages/ProfilePage";
+import AdminPage from "./pages/AdminPage";
+import AddToHomeScreen from "./pages/AddToHomeScreen";
+import ContactPage from "./pages/ContactPage";
 
+/* 🔔 Push Notifications */
 import { listenForegroundNotifications } from "./services/firebase-messaging";
 
-/* 🔥 NEW */
+/* 🔥 Admin realtime notifications */
 import { db } from "./services/firebase";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+} from "firebase/firestore";
 
-/* --------------------------------------- */
+/* ===================================================== */
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
-  children,
-  adminOnly = false
-}) => {
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  adminOnly?: boolean;
+}> = ({ children, adminOnly = false }) => {
   const { user, loading, isAdmin } = useAuth();
 
   if (loading) {
@@ -46,11 +53,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
   return <>{children}</>;
 };
 
-/* ======================================= */
+/* ===================================================== */
 
 export default function App() {
 
-  /* ✅ FCM foreground push */
+  /* ✅ Foreground Firebase Notifications */
   useEffect(() => {
     listenForegroundNotifications();
   }, []);
@@ -64,9 +71,9 @@ export default function App() {
       limit(1)
     );
 
-    const unsub = onSnapshot(q, (snap) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
 
-      snap.docChanges().forEach(change => {
+      snapshot.docChanges().forEach((change) => {
 
         if (change.type === "added") {
 
@@ -76,32 +83,34 @@ export default function App() {
             `${data.title}\n${data.body}`,
             {
               duration: 6000,
-              position: "top-center"
+              position: "top-center",
             }
           );
-
         }
 
       });
 
     });
 
-    return () => unsub();
+    return () => unsubscribe();
 
   }, []);
+
+  /* ===================================================== */
 
   return (
     <AuthProvider>
       <ThemeProvider>
         <Router>
 
+          {/* 🔔 Notification Permission Banner */}
           <NotificationBanner />
 
           <Toaster
             position="top-center"
             toastOptions={{
               className:
-                'rounded-2xl font-sans font-medium text-sm'
+                "rounded-2xl font-sans font-medium text-sm",
             }}
           />
 
@@ -110,37 +119,63 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Layout><CalendarPage /></Layout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CalendarPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <Layout><ProfilePage /></Layout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ProfilePage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/contact" element={
-              <ProtectedRoute>
-                <Layout><ContactPage /></Layout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/contact"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ContactPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/admin" element={
-              <ProtectedRoute adminOnly>
-                <Layout><AdminPage /></Layout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Layout>
+                    <AdminPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/add-to-home" element={
-              <ProtectedRoute>
-                <Layout><AddToHomeScreen /></Layout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/add-to-home"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AddToHomeScreen />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="*" element={<Navigate to="/" />} />
+
           </Routes>
 
         </Router>
