@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, isFirebaseConfigured } from '../services/firebase';
+import { db, isFirebaseConfigured, storage } from '../services/firebase';
 import {
   collection,
   query,
@@ -8,7 +8,6 @@ import {
   deleteDoc,
   updateDoc,
   addDoc,
-  setDoc,
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
@@ -24,15 +23,19 @@ import {
   Clock,
   Mail,
   Settings,
+  Edit2,
   Eye,
   EyeOff,
-  Bell
+  Bell,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import PasswordInput from '../components/PasswordInput';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const AdminPage: React.FC = () => {
 
@@ -51,12 +54,9 @@ const AdminPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  /* ---------------------------------- */
-  /* Firestore Listeners                */
-  /* ---------------------------------- */
+  /* ---------------- LISTENERS ---------------- */
 
   useEffect(() => {
-
     if (!isFirebaseConfigured) return;
 
     const unsubUsers = onSnapshot(
@@ -79,21 +79,16 @@ const AdminPage: React.FC = () => {
       unsubRequests();
       unsubMessages();
     };
-
   }, []);
 
-  /* ---------------------------------- */
-  /* Create User                        */
-  /* ---------------------------------- */
+  /* ---------------- USER CRUD ---------------- */
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
 
     try {
-      const refUser = doc(collection(db, 'users'));
-      await setDoc(refUser, {
-        uid: refUser.id,
+      await addDoc(collection(db, 'users'), {
         username: newUsername,
         email: newEmail,
         password: newPassword,
@@ -105,7 +100,6 @@ const AdminPage: React.FC = () => {
       setNewUsername('');
       setNewEmail('');
       setNewPassword('');
-
     } catch {
       toast.error('Create failed');
     }
@@ -119,13 +113,10 @@ const AdminPage: React.FC = () => {
     toast.success('User deleted');
   };
 
-  /* ---------------------------------- */
-  /* Send Notification                  */
-  /* ---------------------------------- */
+  /* ---------------- SEND NOTIFICATION ---------------- */
 
   const sendNotification = async (e: any) => {
     e.preventDefault();
-
     const title = e.target.title.value;
     const body = e.target.body.value;
 
@@ -138,7 +129,6 @@ const AdminPage: React.FC = () => {
 
       toast.success('Notification queued');
       e.target.reset();
-
     } catch {
       toast.error('Failed sending');
     }
@@ -152,103 +142,110 @@ const AdminPage: React.FC = () => {
   return (
     <div className="space-y-8">
 
-      {/* Tabs */}
+      {/* TABS */}
       <div className="flex flex-wrap glass rounded-2xl p-1 shadow-sm">
 
-        <button
-          onClick={() => setActiveTab('users')}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-            activeTab === 'users'
-              ? "bg-stone-900 text-white"
-              : "text-stone-400 hover:bg-white/50"
-          )}
-        >
-          <Users size={14}/> Members
-        </button>
-
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-            activeTab === 'requests'
-              ? "bg-stone-900 text-white"
-              : "text-stone-400 hover:bg-white/50"
-          )}
-        >
-          <Key size={14}/> Security
-        </button>
-
-        <button
-          onClick={() => setActiveTab('messages')}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-            activeTab === 'messages'
-              ? "bg-stone-900 text-white"
-              : "text-stone-400 hover:bg-white/50"
-          )}
-        >
-          <Mail size={14}/> Messages
-        </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-            activeTab === 'settings'
-              ? "bg-stone-900 text-white"
-              : "text-stone-400 hover:bg-white/50"
-          )}
-        >
-          <Settings size={14}/> Settings
-        </button>
-
-        <button
-          onClick={() => setActiveTab('notifications')}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-            activeTab === 'notifications'
-              ? "bg-stone-900 text-white"
-              : "text-stone-400 hover:bg-white/50"
-          )}
-        >
-          <Bell size={14}/> Notifications
-        </button>
+        {[
+          { key: 'users', label: 'Members', icon: Users },
+          { key: 'requests', label: 'Security', icon: Key },
+          { key: 'messages', label: 'Messages', icon: Mail },
+          { key: 'settings', label: 'Settings', icon: Settings },
+          { key: 'notifications', label: 'Notifications', icon: Bell },
+        ].map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                activeTab === tab.key
+                  ? "bg-stone-900 text-white"
+                  : "text-stone-400 hover:bg-white/50"
+              )}
+            >
+              <Icon size={14} />
+              {tab.label}
+            </button>
+          );
+        })}
 
       </div>
 
       <AnimatePresence mode="wait">
 
+        {/* MEMBERS */}
+        {activeTab === 'users' && (
+          <motion.div key="users" initial={{opacity:0}} animate={{opacity:1}} className="space-y-6">
+
+            <form onSubmit={handleCreateUser}
+              className="card-modern p-6 grid md:grid-cols-4 gap-4">
+
+              <input value={newUsername}
+                onChange={e=>setNewUsername(e.target.value)}
+                placeholder="Username" required />
+
+              <input value={newEmail}
+                onChange={e=>setNewEmail(e.target.value)}
+                placeholder="Email" required />
+
+              <PasswordInput value={newPassword}
+                onChange={e=>setNewPassword(e.target.value)}
+                placeholder="Password" required />
+
+              <button className="btn-primary">
+                {isCreating ? 'Adding...' : 'Add'}
+              </button>
+            </form>
+
+            <div className="card-modern">
+              {filteredUsers.map(user=>(
+                <div key={user.uid}
+                  className="flex justify-between p-4 border-b">
+
+                  <div>
+                    <b>{user.username}</b>
+                    <div className="text-sm text-stone-400">
+                      {user.email}
+                    </div>
+                  </div>
+
+                  <button onClick={()=>handleDeleteUser(user.uid)}>
+                    <Trash2 size={16}/>
+                  </button>
+
+                </div>
+              ))}
+            </div>
+
+          </motion.div>
+        )}
+
+        {/* NOTIFICATIONS */}
         {activeTab === 'notifications' && (
-          <motion.div
-            key="notifications"
+          <motion.div key="notifications"
             initial={{opacity:0,y:10}}
             animate={{opacity:1,y:0}}
-            exit={{opacity:0,y:-10}}
-            className="max-w-xl"
-          >
+            className="max-w-xl">
+
             <div className="card-modern p-8 space-y-6">
 
-              <h3 className="text-lg font-serif font-bold flex items-center gap-2">
+              <h3 className="text-lg font-bold flex items-center gap-2">
                 <Bell size={18}/> Send Push Notification
               </h3>
 
               <form onSubmit={sendNotification} className="space-y-4">
 
-                <input
-                  name="title"
+                <input name="title"
                   placeholder="Title"
                   required
-                  className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl"
-                />
+                  className="input-modern w-full" />
 
-                <textarea
-                  name="body"
+                <textarea name="body"
                   placeholder="Message"
                   required
                   rows={4}
-                  className="w-full px-4 py-3 bg-stone-50 border border-stone-100 rounded-xl"
-                />
+                  className="input-modern w-full" />
 
                 <button className="btn-primary w-full py-4">
                   Send To All Users
