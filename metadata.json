@@ -1,0 +1,5 @@
+{
+  "name": "Pinned Calendar",
+  "description": "A visual calendar app for pinning posts, ideas, and events directly into your schedule with Firebase integration.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+}
