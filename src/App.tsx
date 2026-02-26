@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ThemeProvider } from "./ThemeContext";
 
 import Layout from "./components/Layout";
-import NotificationBanner from "./components/NotificationBanner";
+import NotificationsPage from "./pages/NotificationsPage";
 
 import CalendarPage from "./pages/CalendarPage";
 import LoginPage from "./pages/LoginPage";
