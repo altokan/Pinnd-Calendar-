@@ -1,5 +1,7 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import app from "./firebase";
+import { auth, db } from "./firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 /* ---------------------------------- */
 /* Firebase Messaging Init            */
@@ -23,7 +25,7 @@ const VAPID_KEY =
   "BCGs7pE5hJY8x1tN2GJv_li3XqXTnAOOk6axHH-aes7EFz4LKzgmKPphYjJejjBx_NcM8S2wQW-SjRHB2ITN1cg";
 
 /* ---------------------------------- */
-/* Request Permission                 */
+/* Request Permission + Save Token    */
 /* ---------------------------------- */
 
 export async function requestPushPermission() {
@@ -41,7 +43,22 @@ export async function requestPushPermission() {
       vapidKey: VAPID_KEY,
     });
 
+    if (!token) return;
+
     console.log("🔥 FCM TOKEN:", token);
+
+    // 🔥 Save token in Firestore
+    const currentUser = auth.currentUser;
+
+    if (currentUser) {
+      await setDoc(
+        doc(db, "users", currentUser.uid),
+        {
+          fcmToken: token,
+        },
+        { merge: true }
+      );
+    }
 
     return token;
   } catch (error) {
