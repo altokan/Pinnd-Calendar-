@@ -164,7 +164,7 @@ export default function AdminPage() {
   const sendNotification = async (e: any) => {
     e.preventDefault();
 
-    await addDoc(collection(db, "notifications"), {
+    await addDoc(collection(db, "admin_notifications"), {
       title: e.target.title.value,
       body: e.target.body.value,
       createdAt: serverTimestamp()
