@@ -33,7 +33,7 @@ import {
 
 /* ===================================================== */
 
-const ProtectedRoute: React.FC<{
+const Protected: React.FC<{
   children: React.ReactNode;
   adminOnly?: boolean;
 }> = ({ children, adminOnly = false }) => {
@@ -101,7 +101,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <Router>
+        <r>
 
           {/* 🔔 Notification Permission Banner */}
           <NotificationBanner />
@@ -115,68 +115,56 @@ export default function App() {
           />
 
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <CalendarPage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+  <Route path="/login" element={<LoginPage />} />
+  <Route path="/signup" element={<SignupPage />} />
+  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ProfilePage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+  <Route path="/" element={
+    <ProtectedRoute>
+      <Layout><CalendarPage /></Layout>
+    </ProtectedRoute>
+  } />
 
-            <Route
-              path="/contact"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ContactPage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+  <Route path="/profile" element={
+    <ProtectedRoute>
+      <Layout><ProfilePage /></Layout>
+    </ProtectedRoute>
+  } />
 
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute adminOnly>
-                  <Layout>
-                    <AdminPage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+  <Route path="/contact" element={
+    <ProtectedRoute>
+      <Layout><ContactPage /></Layout>
+    </ProtectedRoute>
+  } />
 
-            <Route
-              path="/add-to-home"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <AddToHomeScreen />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+  <Route path="/admin" element={
+    <ProtectedRoute adminOnly>
+      <Layout><AdminPage /></Layout>
+    </ProtectedRoute>
+  } />
 
-            <Route path="*" element={<Navigate to="/" />} />
+  <Route path="/add-to-home" element={
+    <ProtectedRoute>
+      <Layout><AddToHomeScreen /></Layout>
+    </ProtectedRoute>
+  } />
 
-          </Routes>
+  {/* ✅ ADD THIS */}
+  <Route
+    path="/notifications"
+    element={
+      <ProtectedRoute>
+        <Layout>
+          <NotificationsPage />
+        </Layout>
+      </ProtectedRoute>
+    }
+  />
+
+  <Route path="*" element={<Navigate to="/" />} />
+
+</Routes>
 
         </Router>
       </ThemeProvider>
