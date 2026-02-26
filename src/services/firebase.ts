@@ -1,57 +1,81 @@
 /// <reference types="vite/client" />
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { 
-  getFirestore, 
-  initializeFirestore, 
-  persistentLocalCache, 
-  persistentMultipleTabManager 
-} from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
-const isFirebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_API_KEY !== 'placeholder';
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+
+/* -------------------------------------------------- */
+/* ✅ Check Firebase Config                           */
+/* -------------------------------------------------- */
+
+export const isFirebaseConfigured =
+  !!import.meta.env.VITE_FIREBASE_API_KEY &&
+  import.meta.env.VITE_FIREBASE_API_KEY !== "placeholder";
+
+/* -------------------------------------------------- */
+/* ✅ Firebase Config                                 */
+/* -------------------------------------------------- */
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'placeholder',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'placeholder',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'placeholder',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'placeholder',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || 'placeholder',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || 'placeholder',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'placeholder',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+/* -------------------------------------------------- */
+/* ✅ Initialize App                                  */
+/* -------------------------------------------------- */
+
 let app;
+
 try {
   app = initializeApp(firebaseConfig);
 } catch (error) {
   console.error("Firebase initialization failed:", error);
-  app = { name: '[DEFAULT]' } as any;
+  throw error;
 }
 
-let auth: any;
-let db: any;
-let storage: any;
+/* -------------------------------------------------- */
+/* ✅ Auth                                            */
+/* -------------------------------------------------- */
+
+export const auth = getAuth(app);
+
+/* -------------------------------------------------- */
+/* ✅ Firestore (Offline + Multi Tabs)                */
+/* -------------------------------------------------- */
+
+let db;
 
 try {
-  auth = getAuth(app);
-  
-  // Initialize Firestore with persistent cache for offline support
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
+      tabManager: persistentMultipleTabManager(),
+    }),
   });
-  
-  storage = getStorage(app);
 } catch (error) {
-  console.error("Firebase service initialization failed:", error);
-  // Fallback to basic initialization if persistent cache fails
-  if (app.name === '[DEFAULT]') {
-    db = getFirestore(app);
-  }
+  console.warn("Persistent cache failed → fallback Firestore");
+  db = getFirestore(app);
 }
 
-export { auth, db, storage, isFirebaseConfigured };
+export { db };
+
+/* -------------------------------------------------- */
+/* ✅ Storage (FIX IMAGE UPLOAD BUG)                  */
+/* -------------------------------------------------- */
+
+export const storage = getStorage(app);
+
+/* -------------------------------------------------- */
 
 export default app;
