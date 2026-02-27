@@ -417,17 +417,3 @@ export default function AdminPage() {
           <button className="btn-primary w-full">Save Settings</button>
         </motion.form>
       )}
-
-      {activeTab === "notifications" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <form onSubmit={sendNotification} className="card-modern p-8 space-y-4">
-            <input name="title" placeholder="Title" required className="input" />
-            <textarea name="body" placeholder="Message" required className="input" />
-            <button className="btn-primary w-full">Send To All Users</button>
-          </form>
-        </motion.div>
-      )}
-
-    </div>
-  );
-}
