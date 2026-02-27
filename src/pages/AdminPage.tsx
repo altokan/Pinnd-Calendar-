@@ -1,3 +1,5 @@
+// src/pages/AdminPage.tsx
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   collection,
@@ -46,7 +48,6 @@ export default function AdminPage() {
     appIconUrl: ""
   });
 
-  /* 🔥 NEW MEMBER STATE */
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -99,7 +100,7 @@ export default function AdminPage() {
 
   }, []);
 
-  /* ================= ADD MEMBER (NEW) ================= */
+  /* ================= ADD MEMBER ================= */
 
   const handleCreateUser = async (e: any) => {
     e.preventDefault();
@@ -112,7 +113,6 @@ export default function AdminPage() {
     setIsCreating(true);
 
     try {
-
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         newEmail,
@@ -141,8 +141,6 @@ export default function AdminPage() {
       setIsCreating(false);
     }
   };
-
-  /* ================= DELETE USER ================= */
 
   const deleteUser = async (uid: string) => {
     if (!confirm("Delete user?")) return;
@@ -227,7 +225,6 @@ export default function AdminPage() {
 
       {/* TABS */}
       <div className="flex flex-wrap glass rounded-2xl p-1 shadow-sm">
-
         {[
           { key: "users", label: "Members", icon: Users },
           { key: "requests", label: "Security", icon: Key },
@@ -266,33 +263,13 @@ export default function AdminPage() {
         {activeTab === "users" && (
           <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
 
-            {/* 🔥 ADD MEMBER FORM */}
             <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
-              <input
-                placeholder="Username"
-                value={newUsername}
-                onChange={e => setNewUsername(e.target.value)}
-                className="bg-stone-50 px-3 py-2 rounded-xl border"
-              />
-              <input
-                placeholder="Email"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                className="bg-stone-50 px-3 py-2 rounded-xl border"
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                className="bg-stone-50 px-3 py-2 rounded-xl border"
-              />
-              <button disabled={isCreating} className="btn-primary">
-                {isCreating ? "Creating..." : "Add Member"}
-              </button>
+              <input placeholder="Username" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
+              <input placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
+              <input type="password" placeholder="Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
+              <button disabled={isCreating} className="btn-primary">{isCreating ? "Creating..." : "Add Member"}</button>
             </form>
 
-            {/* LIST MEMBERS */}
             {filteredUsers.map(u => (
               <div key={u.uid} className="flex justify-between border-b py-3">
                 <div>
@@ -300,15 +277,13 @@ export default function AdminPage() {
                   <div className="text-xs text-stone-400">{u.email}</div>
                 </div>
                 <button onClick={() => deleteUser(u.uid)}>
-                  <Trash2 size={16} />
+                  <Trash2 size={16}/>
                 </button>
               </div>
             ))}
 
           </motion.div>
         )}
-
-        {/* باقي التبويبات كما كانت بدون حذف أي شيء */}
 
       </AnimatePresence>
     </div>
