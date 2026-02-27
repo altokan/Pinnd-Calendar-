@@ -42,13 +42,9 @@ import { cn } from "../lib/utils";
 
 export default function AdminPage() {
 
-/* ---------------- TABS ---------------- */
-
 const [activeTab,setActiveTab]=useState<
 "users"|"security"|"messages"|"settings"|"notifications"
 >("users");
-
-/* ---------------- DATA ---------------- */
 
 const [users,setUsers]=useState<any[]>([]);
 const [resetRequests,setResetRequests]=useState<any[]>([]);
@@ -62,20 +58,14 @@ const [search,setSearch]=useState("");
 const [showPasswords,setShowPasswords]=useState<Record<string,boolean>>({});
 const prevMsgCount=useRef(0);
 
-/* ---------------- MEMBER CREATE ---------------- */
-
 const [newUsername,setNewUsername]=useState("");
 const [newEmail,setNewEmail]=useState("");
 const [newPassword,setNewPassword]=useState("");
 const [creating,setCreating]=useState(false);
 
-/* ---------------- EDIT USER ---------------- */
-
 const [editingUser,setEditingUser]=useState<any|null>(null);
 const [editUsername,setEditUsername]=useState("");
 const [editEmail,setEditEmail]=useState("");
-
-/* ---------------- LISTENERS ---------------- */
 
 useEffect(()=>{
 
@@ -116,16 +106,12 @@ unsubSettings();
 
 },[]);
 
-/* ---------------- CREATE MEMBER ---------------- */
-
 const handleCreateUser=async(e:any)=>{
 e.preventDefault();
-
 if(!newUsername||!newEmail||!newPassword)
 return toast.error("Fill all fields");
 
 const check=await getDocs(collection(db,"users"));
-
 const exists=check.docs.some(
 u=>u.data().username?.toLowerCase()===newUsername.toLowerCase()
 );
@@ -133,12 +119,8 @@ u=>u.data().username?.toLowerCase()===newUsername.toLowerCase()
 if(exists) return toast.error("Username exists");
 
 try{
-
 setCreating(true);
-
-const cred=await createUserWithEmailAndPassword(
-auth,newEmail,newPassword
-);
+const cred=await createUserWithEmailAndPassword(auth,newEmail,newPassword);
 
 await setDoc(doc(db,"users",cred.user.uid),{
 uid:cred.user.uid,
@@ -150,7 +132,6 @@ lastLogin:null
 });
 
 toast.success("Member added");
-
 setNewUsername("");
 setNewEmail("");
 setNewPassword("");
@@ -162,16 +143,12 @@ setCreating(false);
 }
 };
 
-/* ---------------- USER ACTIONS ---------------- */
-
 const updateUser=async()=>{
 if(!editingUser)return;
-
 await updateDoc(doc(db,"users",editingUser.uid),{
 username:editUsername,
 email:editEmail
 });
-
 toast.success("User updated");
 setEditingUser(null);
 };
@@ -186,8 +163,6 @@ if(!confirm("Delete user?"))return;
 await deleteDoc(doc(db,"users",uid));
 toast.success("User deleted");
 };
-
-/* ---------------- MESSAGES ---------------- */
 
 const unreadCount=messages.filter(m=>!m.read).length;
 
@@ -204,16 +179,12 @@ await batch.commit();
 toast.success("All messages deleted");
 };
 
-/* ---------------- SETTINGS ---------------- */
-
 const uploadIcon=async(e:any)=>{
 const file=e.target.files[0];
 if(!file)return;
-
 const r=ref(storage,"admin/icon_"+Date.now());
 await uploadBytes(r,file);
 const url=await getDownloadURL(r);
-
 setSettings((p:any)=>({...p,appIconUrl:url}));
 toast.success("Icon uploaded");
 };
@@ -224,36 +195,27 @@ await setDoc(doc(db,"settings","admin"),settings);
 toast.success("Settings saved");
 };
 
-/* ---------------- SEND NOTIFICATION ---------------- */
-
 const sendNotification=async(e:any)=>{
 e.preventDefault();
-
 await addDoc(collection(db,"admin_notifications"),{
 title:e.target.title.value,
 body:e.target.body.value,
 createdAt:serverTimestamp()
 });
-
 toast.success("Notification sent");
 e.target.reset();
 };
-
-/* ---------------- FILTER ---------------- */
 
 const filteredUsers=users.filter(u=>
 u.username?.toLowerCase().includes(search.toLowerCase())||
 u.email?.toLowerCase().includes(search.toLowerCase())
 );
 
-/* ================= UI ================= */
-
 return(
-<div className="space-y-8">
+<div className="space-y-10">
 
-{/* ---------- TABS ---------- */}
-
-<div className="flex flex-wrap rounded-2xl p-2 bg-stone-100 gap-2">
+{/* TABS */}
+<div className="flex flex-wrap gap-3 bg-white border rounded-3xl p-3 shadow-sm">
 {[
 {key:"users",label:"Members",icon:Users},
 {key:"security",label:"Security",icon:Key},
@@ -267,15 +229,15 @@ return(
 key={t.key}
 onClick={()=>setActiveTab(t.key as any)}
 className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold",
+"flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all",
 activeTab===t.key
-?"bg-stone-900 text-white"
-:"bg-white text-stone-500"
+?"bg-black text-white shadow-md"
+:"bg-stone-100 text-stone-600 hover:bg-stone-200"
 )}>
-<Icon size={14}/>
+<Icon size={16}/>
 {t.label}
 {t.key==="messages"&&unreadCount>0&&(
-<span className="ml-1 bg-red-500 text-white text-[10px] px-2 rounded-full">
+<span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
 {unreadCount}
 </span>
 )}
@@ -284,195 +246,75 @@ activeTab===t.key
 })}
 </div>
 
-{/* ================= MEMBERS ================= */}
-
+{/* MEMBERS */}
 {activeTab==="users"&&(
-<motion.div className="card-modern p-6 space-y-6">
-
+<motion.div className="bg-white rounded-3xl border shadow-sm p-8 space-y-6">
 <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
-<input placeholder="Username" value={newUsername}
-onChange={e=>setNewUsername(e.target.value)} className="input"/>
-
-<input placeholder="Email" value={newEmail}
-onChange={e=>setNewEmail(e.target.value)} className="input"/>
-
-<input type="password" placeholder="Password"
-value={newPassword}
-onChange={e=>setNewPassword(e.target.value)}
-className="input"/>
-
-<button className="btn-primary">
-{creating?"Creating...":"Add Member"}
-</button>
+<input className="px-4 py-3 rounded-2xl border bg-stone-50 focus:ring-2 focus:ring-black outline-none" placeholder="Username" value={newUsername} onChange={e=>setNewUsername(e.target.value)} />
+<input className="px-4 py-3 rounded-2xl border bg-stone-50 focus:ring-2 focus:ring-black outline-none" placeholder="Email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} />
+<input type="password" className="px-4 py-3 rounded-2xl border bg-stone-50 focus:ring-2 focus:ring-black outline-none" placeholder="Password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} />
+<button className="bg-black text-white rounded-2xl font-semibold hover:bg-stone-800 transition">{creating?"Creating...":"Add Member"}</button>
 </form>
 
-<input placeholder="Search..." value={search}
-onChange={e=>setSearch(e.target.value)}
-className="input"/>
+<input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}
+className="w-full px-4 py-3 rounded-2xl border bg-stone-50 focus:ring-2 focus:ring-black outline-none"/>
 
 {filteredUsers.map(u=>(
-<div key={u.uid} className="flex justify-between border-b py-3">
-
+<div key={u.uid} className="flex justify-between items-center border-b py-4">
 <div>
-<b>{u.username}</b>
-<div className="text-xs text-stone-400">{u.email}</div>
+<p className="font-semibold">{u.username}</p>
+<p className="text-sm text-stone-400">{u.email}</p>
 </div>
-
 <div className="flex gap-3">
-
-<button onClick={()=>
-setShowPasswords(p=>({...p,[u.uid]:!p[u.uid]}))
-}>
+<button className="p-2 rounded-xl hover:bg-stone-100" onClick={()=>setShowPasswords(p=>({...p,[u.uid]:!p[u.uid]}))}>
 {showPasswords[u.uid]?<EyeOff size={16}/>:<Eye size={16}/>}
 </button>
-
-<button onClick={()=>{
-setEditingUser(u);
-setEditUsername(u.username);
-setEditEmail(u.email);
-}}>
+<button className="p-2 rounded-xl hover:bg-stone-100" onClick={()=>{setEditingUser(u);setEditUsername(u.username);setEditEmail(u.email);}}>
 <Edit2 size={16}/>
 </button>
-
-<button onClick={()=>resetPassword(u.email)}>
+<button className="p-2 rounded-xl hover:bg-stone-100" onClick={()=>resetPassword(u.email)}>
 <Key size={16}/>
 </button>
-
-<button onClick={()=>deleteUser(u.uid)}>
-<Trash2 size={16}/>
-</button>
-
-</div>
-</div>
-))}
-
-</motion.div>
-)}
-
-{/* ================= SECURITY ================= */}
-
-{activeTab==="security"&&(
-<motion.div className="card-modern p-6 space-y-4">
-
-{resetRequests.map(r=>(
-<div key={r.id} className="flex justify-between border-b py-3">
-<div>
-<b>{r.username}</b>
-<div className="text-xs">{r.email}</div>
-</div>
-
-{r.status!=="completed"&&(
-<button onClick={()=>updateDoc(doc(db,"resetRequests",r.id),{status:"completed"})}>
-<Check size={16}/>
-</button>
-)}
-</div>
-))}
-
-</motion.div>
-)}
-
-{/* ================= MESSAGES ================= */}
-
-{activeTab==="messages"&&(
-<motion.div className="space-y-4">
-
-<button onClick={deleteAllMessages}
-className="bg-red-600 text-white px-4 py-2 rounded-xl text-xs">
-Delete All
-</button>
-
-{messages.map(m=>(
-<div key={m.id}
-className={cn("card-modern p-6",!m.read&&"border-blue-400 border")}>
-
-<div className="flex justify-between">
-<div>
-<b>{m.username}</b>
-<div className="text-xs">{m.email}</div>
-</div>
-
-<div className="flex gap-3">
-{!m.read&&(
-<button onClick={()=>markRead(m.id)}>
-<Check size={16}/>
-</button>
-)}
-<button onClick={()=>deleteMessage(m.id)}>
+<button className="p-2 rounded-xl hover:bg-red-50 text-red-500" onClick={()=>deleteUser(u.uid)}>
 <Trash2 size={16}/>
 </button>
 </div>
 </div>
-
-<p className="mt-3 bg-stone-50 p-3 rounded-xl">{m.message}</p>
-
-</div>
 ))}
-
 </motion.div>
 )}
 
-{/* ================= SETTINGS ================= */}
-
-{activeTab==="settings"&&(
-<motion.form onSubmit={saveSettings}
-className="card-modern p-6 space-y-6">
-
-<h3 className="font-bold">Application Icon</h3>
-
-<div className="flex gap-6 items-center">
-<div className="w-24 h-24 rounded-2xl overflow-hidden border">
-{settings.appIconUrl&&(
-<img src={settings.appIconUrl}
-className="w-full h-full object-cover"/>
-)}
-</div>
-
-<input type="file" accept="image/*" onChange={uploadIcon}/>
-</div>
-
-<input
-value={settings.contactRecipientEmail}
-onChange={e=>setSettings({...settings,contactRecipientEmail:e.target.value})}
-className="input"
-/>
-
-<button className="btn-primary w-full">
-Save Settings
-</button>
-
-</motion.form>
-)}
-
-{/* ================= NOTIFICATIONS ================= */}
-
+{/* NOTIFICATIONS */}
 {activeTab==="notifications"&&(
-<motion.div className="max-w-2xl">
+<motion.div className="max-w-2xl bg-white rounded-3xl border shadow-sm p-8">
+<form onSubmit={sendNotification} className="space-y-6">
 
-<form onSubmit={sendNotification} className="notification-form">
-className="card-modern p-8 space-y-6">
-
+<div>
+<label className="text-sm font-semibold mb-2 block">Notification Title</label>
 <input
 name="title"
 required
-placeholder="Notification Title"
-className="input border"
+placeholder="Write notification title..."
+className="w-full px-5 py-4 rounded-2xl border border-stone-300 bg-stone-50 focus:ring-2 focus:ring-rose-500 outline-none"
 />
+</div>
 
+<div>
+<label className="text-sm font-semibold mb-2 block">Message</label>
 <textarea
 name="body"
 rows={6}
 required
-placeholder="Notification Message"
-className="input border"
+placeholder="Write notification message..."
+className="w-full px-5 py-5 rounded-2xl border border-stone-300 bg-stone-50 focus:ring-2 focus:ring-rose-500 outline-none resize-none"
 />
+</div>
 
-<button className="w-full py-5 rounded-2xl bg-rose-700 text-white font-bold">
+<button className="w-full py-5 rounded-2xl bg-rose-600 text-white font-semibold hover:bg-rose-700 transition">
 Send To All Users
 </button>
 
 </form>
-
 </motion.div>
 )}
 
