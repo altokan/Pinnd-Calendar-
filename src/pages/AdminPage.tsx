@@ -12,10 +12,15 @@ import {
   addDoc,
   orderBy,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  getDocs
 } from "firebase/firestore";
 
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
+
 import { db, storage, auth } from "../services/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -27,18 +32,25 @@ import {
   Check,
   Mail,
   Settings,
-  Bell
+  Bell,
+  Eye,
+  EyeOff,
+  Edit2
 } from "lucide-react";
 
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import toast from "react-hot-toast";
 import { cn } from "../lib/utils";
 
 export default function AdminPage() {
 
+  /* ---------------- TABS ---------------- */
+
   const [activeTab, setActiveTab] = useState<
-    "users" | "requests" | "messages" | "settings" | "notifications"
+    "users" | "security" | "messages" | "settings" | "notifications"
   >("users");
+
+  /* ---------------- DATA ---------------- */
 
   const [users, setUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
@@ -48,15 +60,24 @@ export default function AdminPage() {
     appIconUrl: ""
   });
 
+  const [search, setSearch] = useState("");
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const prevMsgCount = useRef(0);
+
+  /* ---------------- NEW MEMBER ---------------- */
+
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const prevMsgCount = useRef(0);
+  /* ---------------- EDIT MEMBER ---------------- */
 
-  /* ================= LISTENERS ================= */
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+
+  /* ---------------- LISTENERS ---------------- */
 
   useEffect(() => {
 
@@ -79,16 +100,13 @@ export default function AdminPage() {
         if (data.length > prevMsgCount.current) {
           toast("📩 New message received");
         }
-
         prevMsgCount.current = data.length;
       }
     );
 
     const unsubSettings = onSnapshot(
       doc(db, "settings", "admin"),
-      snap => {
-        if (snap.exists()) setSettings(snap.data());
-      }
+      snap => snap.exists() && setSettings(snap.data())
     );
 
     return () => {
@@ -100,46 +118,69 @@ export default function AdminPage() {
 
   }, []);
 
-  /* ================= ADD MEMBER ================= */
+  /* ---------------- CREATE MEMBER ---------------- */
 
   const handleCreateUser = async (e: any) => {
     e.preventDefault();
 
-    if (!newUsername || !newEmail || !newPassword) {
-      toast.error("Fill all fields");
-      return;
-    }
+    if (!newUsername || !newEmail || !newPassword)
+      return toast.error("Fill all fields");
 
-    setIsCreating(true);
+    const check = await getDocs(collection(db, "users"));
+    const exists = check.docs.some(
+      u => u.data().username?.toLowerCase() === newUsername.toLowerCase()
+    );
+
+    if (exists) return toast.error("Username already exists");
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      setCreating(true);
+
+      const cred = await createUserWithEmailAndPassword(
         auth,
         newEmail,
         newPassword
       );
 
-      const uid = userCredential.user.uid;
-
-      await setDoc(doc(db, "users", uid), {
-        uid,
+      await setDoc(doc(db, "users", cred.user.uid), {
+        uid: cred.user.uid,
         username: newUsername,
         email: newEmail,
         role: "user",
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        lastLogin: null
       });
 
-      toast.success("Member created successfully");
+      toast.success("Member added");
 
       setNewUsername("");
       setNewEmail("");
       setNewPassword("");
 
-    } catch (error: any) {
-      toast.error(error.message || "Error creating user");
+    } catch (e: any) {
+      toast.error(e.message);
     } finally {
-      setIsCreating(false);
+      setCreating(false);
     }
+  };
+
+  /* ---------------- USER ACTIONS ---------------- */
+
+  const updateUser = async () => {
+    if (!editingUser) return;
+
+    await updateDoc(doc(db, "users", editingUser.uid), {
+      username: editUsername,
+      email: editEmail
+    });
+
+    toast.success("User updated");
+    setEditingUser(null);
+  };
+
+  const resetPassword = (email: string) => {
+    sendPasswordResetEmail(auth, email);
+    toast.success("Reset email sent");
   };
 
   const deleteUser = async (uid: string) => {
@@ -148,53 +189,37 @@ export default function AdminPage() {
     toast.success("User deleted");
   };
 
-  const filteredUsers = users.filter(u =>
-    u.username?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  /* ================= SECURITY ================= */
-
-  const completeRequest = async (id: string) => {
-    await updateDoc(doc(db, "resetRequests", id), { status: "completed" });
-    toast.success("Request completed");
-  };
-
-  /* ================= MESSAGES ================= */
+  /* ---------------- MESSAGES ---------------- */
 
   const unreadCount = messages.filter(m => !m.read).length;
 
-  const markRead = async (id: string) => {
-    await updateDoc(doc(db, "contactMessages", id), { read: true });
-  };
+  const markRead = (id: string) =>
+    updateDoc(doc(db, "contactMessages", id), { read: true });
 
-  const deleteMessage = async (id: string) => {
-    if (!confirm("Delete this message?")) return;
-    await deleteDoc(doc(db, "contactMessages", id));
-  };
+  const deleteMessage = (id: string) =>
+    deleteDoc(doc(db, "contactMessages", id));
 
   const deleteAllMessages = async () => {
-    if (!confirm("Delete ALL messages?")) return;
     const batch = writeBatch(db);
-    messages.forEach(m => {
-      batch.delete(doc(db, "contactMessages", m.id));
-    });
+    messages.forEach(m =>
+      batch.delete(doc(db, "contactMessages", m.id))
+    );
     await batch.commit();
     toast.success("All messages deleted");
   };
 
-  /* ================= SETTINGS ================= */
+  /* ---------------- SETTINGS ---------------- */
 
-  const uploadAppIcon = async (e: any) => {
+  const uploadIcon = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const storageRef = ref(storage, "admin/app_icon_" + Date.now());
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
+    const r = ref(storage, "admin/icon_" + Date.now());
+    await uploadBytes(r, file);
+    const url = await getDownloadURL(r);
 
-    setSettings(prev => ({ ...prev, appIconUrl: url }));
-    toast.success("App icon uploaded");
+    setSettings((p: any) => ({ ...p, appIconUrl: url }));
+    toast.success("Icon uploaded");
   };
 
   const saveSettings = async (e: any) => {
@@ -203,7 +228,7 @@ export default function AdminPage() {
     toast.success("Settings saved");
   };
 
-  /* ================= NOTIFICATIONS ================= */
+  /* ---------------- NOTIFICATIONS ---------------- */
 
   const sendNotification = async (e: any) => {
     e.preventDefault();
@@ -218,36 +243,42 @@ export default function AdminPage() {
     e.target.reset();
   };
 
-  /* ================= UI ================= */
+  /* ---------------- FILTER ---------------- */
+
+  const filteredUsers = users.filter(u =>
+    u.username?.toLowerCase().includes(search.toLowerCase()) ||
+    u.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  /* ---------------- UI ---------------- */
 
   return (
     <div className="space-y-8">
 
-      {/* TABS */}
-      <div className="flex flex-wrap glass rounded-2xl p-1 shadow-sm">
+      {/* Tabs */}
+      <div className="flex flex-wrap rounded-2xl p-2 bg-stone-100 gap-2">
         {[
           { key: "users", label: "Members", icon: Users },
-          { key: "requests", label: "Security", icon: Key },
+          { key: "security", label: "Security", icon: Key },
           { key: "messages", label: "Messages", icon: Mail },
           { key: "settings", label: "Settings", icon: Settings },
           { key: "notifications", label: "Notifications", icon: Bell }
-        ].map(tab => {
-          const Icon = tab.icon;
+        ].map(t => {
+          const Icon = t.icon;
           return (
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
+              key={t.key}
+              onClick={() => setActiveTab(t.key as any)}
               className={cn(
-                "relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                activeTab === tab.key
+                "relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold",
+                activeTab === t.key
                   ? "bg-stone-900 text-white"
-                  : "text-stone-400 hover:bg-white/50"
+                  : "text-stone-500 bg-white"
               )}
             >
               <Icon size={14} />
-              {tab.label}
-
-              {tab.key === "messages" && unreadCount > 0 && (
+              {t.label}
+              {t.key === "messages" && unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-2 rounded-full">
                   {unreadCount}
                 </span>
@@ -257,35 +288,146 @@ export default function AdminPage() {
         })}
       </div>
 
-      <AnimatePresence mode="wait">
+      {/* CONTENT */}
 
-        {/* MEMBERS */}
-        {activeTab === "users" && (
-          <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
+      {activeTab === "users" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
 
-            <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
-              <input placeholder="Username" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
-              <input placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
-              <input type="password" placeholder="Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="bg-stone-50 px-3 py-2 rounded-xl border"/>
-              <button disabled={isCreating} className="btn-primary">{isCreating ? "Creating..." : "Add Member"}</button>
-            </form>
+          <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
+            <input placeholder="Username" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="input" />
+            <input placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="input" />
+            <input type="password" placeholder="Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input" />
+            <button className="btn-primary">{creating ? "Creating..." : "Add Member"}</button>
+          </form>
 
-            {filteredUsers.map(u => (
-              <div key={u.uid} className="flex justify-between border-b py-3">
-                <div>
-                  <b>{u.username}</b>
-                  <div className="text-xs text-stone-400">{u.email}</div>
+          <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="input" />
+
+          {filteredUsers.map(u => (
+            <div key={u.uid} className="flex justify-between border-b py-3">
+              <div>
+                <b>{u.username}</b>
+                <div className="text-xs text-stone-400">{u.email}</div>
+                <div className="text-[10px] text-stone-400">
+                  Created: {new Date(u.createdAt).toLocaleDateString()}
                 </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() =>
+                  setShowPasswords(p => ({ ...p, [u.uid]: !p[u.uid] }))
+                }>
+                  {showPasswords[u.uid] ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+
+                <button onClick={() => {
+                  setEditingUser(u);
+                  setEditUsername(u.username);
+                  setEditEmail(u.email);
+                }}>
+                  <Edit2 size={16} />
+                </button>
+
+                <button onClick={() => resetPassword(u.email)}>
+                  <Key size={16} />
+                </button>
+
                 <button onClick={() => deleteUser(u.uid)}>
-                  <Trash2 size={16}/>
+                  <Trash2 size={16} />
                 </button>
               </div>
-            ))}
+            </div>
+          ))}
 
-          </motion.div>
-        )}
+        </motion.div>
+      )}
 
-      </AnimatePresence>
+      {activeTab === "security" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-4">
+          {resetRequests.map(r => (
+            <div key={r.id} className="flex justify-between border-b py-3">
+              <div>
+                <b>{r.username}</b>
+                <div className="text-xs">{r.email}</div>
+              </div>
+
+              {r.status !== "completed" && (
+                <button onClick={() =>
+                  updateDoc(doc(db, "resetRequests", r.id), { status: "completed" })
+                }>
+                  <Check size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+        </motion.div>
+      )}
+
+      {activeTab === "messages" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+
+          <button onClick={deleteAllMessages} className="bg-red-600 text-white px-4 py-2 rounded-xl text-xs">
+            Delete All
+          </button>
+
+          {messages.map(m => (
+            <div key={m.id} className={cn("card-modern p-6", !m.read && "border-blue-400 border")}>
+              <div className="flex justify-between">
+                <div>
+                  <b>{m.username}</b>
+                  <div className="text-xs">{m.email}</div>
+                </div>
+
+                <div className="flex gap-3">
+                  {!m.read && (
+                    <button onClick={() => markRead(m.id)}>
+                      <Check size={16} />
+                    </button>
+                  )}
+                  <button onClick={() => deleteMessage(m.id)}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 bg-stone-50 p-3 rounded-xl">{m.message}</p>
+            </div>
+          ))}
+        </motion.div>
+      )}
+
+      {activeTab === "settings" && (
+        <motion.form onSubmit={saveSettings} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
+          <h3 className="font-bold">Application Icon</h3>
+
+          <div className="flex gap-6 items-center">
+            <div className="w-24 h-24 rounded-2xl overflow-hidden border">
+              {settings.appIconUrl && (
+                <img src={settings.appIconUrl} className="w-full h-full object-cover" />
+              )}
+            </div>
+
+            <input type="file" accept="image/*" onChange={uploadIcon} />
+          </div>
+
+          <input
+            value={settings.contactRecipientEmail}
+            onChange={e => setSettings({ ...settings, contactRecipientEmail: e.target.value })}
+            className="input"
+          />
+
+          <button className="btn-primary w-full">Save Settings</button>
+        </motion.form>
+      )}
+
+      {activeTab === "notifications" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <form onSubmit={sendNotification} className="card-modern p-8 space-y-4">
+            <input name="title" placeholder="Title" required className="input" />
+            <textarea name="body" placeholder="Message" required className="input" />
+            <button className="btn-primary w-full">Send To All Users</button>
+          </form>
+        </motion.div>
+      )}
+
     </div>
   );
 }
