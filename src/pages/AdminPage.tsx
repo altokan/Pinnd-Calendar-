@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 
 import { createUserWithEmailAndPassword } from "firebase/auth";
-
 import { db, storage, auth } from "../services/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -47,12 +46,13 @@ export default function AdminPage() {
     appIconUrl: ""
   });
 
-  const [search, setSearch] = useState("");
+  /* 🔥 NEW MEMBER STATE */
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
+  const [search, setSearch] = useState("");
   const prevMsgCount = useRef(0);
 
   /* ================= LISTENERS ================= */
@@ -99,7 +99,7 @@ export default function AdminPage() {
 
   }, []);
 
-  /* ================= ADD MEMBER ================= */
+  /* ================= ADD MEMBER (NEW) ================= */
 
   const handleCreateUser = async (e: any) => {
     e.preventDefault();
@@ -112,6 +112,7 @@ export default function AdminPage() {
     setIsCreating(true);
 
     try {
+
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         newEmail,
@@ -257,7 +258,6 @@ export default function AdminPage() {
             </button>
           );
         })}
-
       </div>
 
       <AnimatePresence mode="wait">
@@ -266,7 +266,7 @@ export default function AdminPage() {
         {activeTab === "users" && (
           <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
 
-            {/* ADD MEMBER FORM */}
+            {/* 🔥 ADD MEMBER FORM */}
             <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
               <input
                 placeholder="Username"
@@ -292,17 +292,7 @@ export default function AdminPage() {
               </button>
             </form>
 
-            {/* SEARCH */}
-            <div className="flex items-center gap-2">
-              <Search size={16} />
-              <input
-                placeholder="Search members..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="bg-stone-50 px-3 py-2 rounded-xl border"
-              />
-            </div>
-
+            {/* LIST MEMBERS */}
             {filteredUsers.map(u => (
               <div key={u.uid} className="flex justify-between border-b py-3">
                 <div>
@@ -318,7 +308,8 @@ export default function AdminPage() {
           </motion.div>
         )}
 
-        {/* باقي التبويبات كما هي */}
+        {/* باقي التبويبات كما كانت بدون حذف أي شيء */}
+
       </AnimatePresence>
     </div>
   );
