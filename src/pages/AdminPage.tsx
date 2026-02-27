@@ -44,13 +44,9 @@ import { cn } from "../lib/utils";
 
 export default function AdminPage() {
 
-  /* ---------------- TABS ---------------- */
-
   const [activeTab, setActiveTab] = useState<
     "users" | "security" | "messages" | "settings" | "notifications"
   >("users");
-
-  /* ---------------- DATA ---------------- */
 
   const [users, setUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
@@ -64,20 +60,14 @@ export default function AdminPage() {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const prevMsgCount = useRef(0);
 
-  /* ---------------- NEW MEMBER ---------------- */
-
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [creating, setCreating] = useState(false);
 
-  /* ---------------- EDIT MEMBER ---------------- */
-
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editEmail, setEditEmail] = useState("");
-
-  /* ---------------- LISTENERS ---------------- */
 
   useEffect(() => {
 
@@ -118,118 +108,6 @@ export default function AdminPage() {
 
   }, []);
 
-  /* ---------------- CREATE MEMBER ---------------- */
-
-  const handleCreateUser = async (e: any) => {
-    e.preventDefault();
-
-    if (!newUsername || !newEmail || !newPassword)
-      return toast.error("Fill all fields");
-
-    const check = await getDocs(collection(db, "users"));
-    const exists = check.docs.some(
-      u => u.data().username?.toLowerCase() === newUsername.toLowerCase()
-    );
-
-    if (exists) return toast.error("Username already exists");
-
-    try {
-      setCreating(true);
-
-      const cred = await createUserWithEmailAndPassword(
-        auth,
-        newEmail,
-        newPassword
-      );
-
-      await setDoc(doc(db, "users", cred.user.uid), {
-        uid: cred.user.uid,
-        username: newUsername,
-        email: newEmail,
-        role: "user",
-        createdAt: Date.now(),
-        lastLogin: null
-      });
-
-      toast.success("Member added");
-
-      setNewUsername("");
-      setNewEmail("");
-      setNewPassword("");
-
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  /* ---------------- USER ACTIONS ---------------- */
-
-  const updateUser = async () => {
-    if (!editingUser) return;
-
-    await updateDoc(doc(db, "users", editingUser.uid), {
-      username: editUsername,
-      email: editEmail
-    });
-
-    toast.success("User updated");
-    setEditingUser(null);
-  };
-
-  const resetPassword = (email: string) => {
-    sendPasswordResetEmail(auth, email);
-    toast.success("Reset email sent");
-  };
-
-  const deleteUser = async (uid: string) => {
-    if (!confirm("Delete user?")) return;
-    await deleteDoc(doc(db, "users", uid));
-    toast.success("User deleted");
-  };
-
-  /* ---------------- MESSAGES ---------------- */
-
-  const unreadCount = messages.filter(m => !m.read).length;
-
-  const markRead = (id: string) =>
-    updateDoc(doc(db, "contactMessages", id), { read: true });
-
-  const deleteMessage = (id: string) =>
-    deleteDoc(doc(db, "contactMessages", id));
-
-  const deleteAllMessages = async () => {
-    const batch = writeBatch(db);
-    messages.forEach(m =>
-      batch.delete(doc(db, "contactMessages", m.id))
-    );
-    await batch.commit();
-    toast.success("All messages deleted");
-  };
-
-  /* ---------------- SETTINGS ---------------- */
-
-  const uploadIcon = async (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const r = ref(storage, "admin/icon_" + Date.now());
-    await uploadBytes(r, file);
-    const url = await getDownloadURL(r);
-
-    setSettings((p: any) => ({ ...p, appIconUrl: url }));
-    toast.success("Icon uploaded");
-  };
-
-  const saveSettings = async (e: any) => {
-    e.preventDefault();
-    await setDoc(doc(db, "settings", "admin"), settings);
-    toast.success("Settings saved");
-  };
-
-  /* ---------------- NOTIFICATIONS ---------------- */
-
   const sendNotification = async (e: any) => {
     e.preventDefault();
 
@@ -242,15 +120,6 @@ export default function AdminPage() {
     toast.success("Notification sent");
     e.target.reset();
   };
-
-  /* ---------------- FILTER ---------------- */
-
-  const filteredUsers = users.filter(u =>
-    u.username?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  /* ---------------- UI ---------------- */
 
   return (
     <div className="space-y-8">
@@ -278,142 +147,61 @@ export default function AdminPage() {
             >
               <Icon size={14} />
               {t.label}
-              {t.key === "messages" && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-2 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
             </button>
           );
         })}
       </div>
 
-      {/* CONTENT */}
+      {/* Notifications */}
+      {activeTab === "notifications" && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="max-w-2xl"
+        >
+          <form
+            onSubmit={sendNotification}
+            className="card-modern p-8 space-y-6"
+          >
 
-      {activeTab === "users" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+                Notification Title
+              </label>
 
-          <form onSubmit={handleCreateUser} className="grid md:grid-cols-4 gap-4">
-            <input placeholder="Username" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="input" />
-            <input placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="input" />
-            <input type="password" placeholder="Password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input" />
-            <button className="btn-primary">{creating ? "Creating..." : "Add Member"}</button>
+              <input
+                name="title"
+                required
+                placeholder="Write notification title..."
+                className="w-full px-4 py-3 rounded-2xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-rose-400 transition"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+                Message
+              </label>
+
+              <textarea
+                name="body"
+                required
+                rows={6}
+                placeholder="Write notification message..."
+                className="w-full px-4 py-4 rounded-2xl border border-stone-300 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-5 rounded-2xl bg-rose-700 text-white font-bold tracking-wide text-sm shadow-lg hover:bg-rose-800 transition-all"
+            >
+              Send To All Users
+            </button>
+
           </form>
-
-          <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="input" />
-
-          {filteredUsers.map(u => (
-            <div key={u.uid} className="flex justify-between border-b py-3">
-              <div>
-                <b>{u.username}</b>
-                <div className="text-xs text-stone-400">{u.email}</div>
-                <div className="text-[10px] text-stone-400">
-                  Created: {new Date(u.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button onClick={() =>
-                  setShowPasswords(p => ({ ...p, [u.uid]: !p[u.uid] }))
-                }>
-                  {showPasswords[u.uid] ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-
-                <button onClick={() => {
-                  setEditingUser(u);
-                  setEditUsername(u.username);
-                  setEditEmail(u.email);
-                }}>
-                  <Edit2 size={16} />
-                </button>
-
-                <button onClick={() => resetPassword(u.email)}>
-                  <Key size={16} />
-                </button>
-
-                <button onClick={() => deleteUser(u.uid)}>
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
-
         </motion.div>
       )}
 
-      {activeTab === "security" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-4">
-          {resetRequests.map(r => (
-            <div key={r.id} className="flex justify-between border-b py-3">
-              <div>
-                <b>{r.username}</b>
-                <div className="text-xs">{r.email}</div>
-              </div>
-
-              {r.status !== "completed" && (
-                <button onClick={() =>
-                  updateDoc(doc(db, "resetRequests", r.id), { status: "completed" })
-                }>
-                  <Check size={16} />
-                </button>
-              )}
-            </div>
-          ))}
-        </motion.div>
-      )}
-
-      {activeTab === "messages" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-
-          <button onClick={deleteAllMessages} className="bg-red-600 text-white px-4 py-2 rounded-xl text-xs">
-            Delete All
-          </button>
-
-          {messages.map(m => (
-            <div key={m.id} className={cn("card-modern p-6", !m.read && "border-blue-400 border")}>
-              <div className="flex justify-between">
-                <div>
-                  <b>{m.username}</b>
-                  <div className="text-xs">{m.email}</div>
-                </div>
-
-                <div className="flex gap-3">
-                  {!m.read && (
-                    <button onClick={() => markRead(m.id)}>
-                      <Check size={16} />
-                    </button>
-                  )}
-                  <button onClick={() => deleteMessage(m.id)}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <p className="mt-3 bg-stone-50 p-3 rounded-xl">{m.message}</p>
-            </div>
-          ))}
-        </motion.div>
-      )}
-
-      {activeTab === "settings" && (
-        <motion.form onSubmit={saveSettings} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card-modern p-6 space-y-6">
-          <h3 className="font-bold">Application Icon</h3>
-
-          <div className="flex gap-6 items-center">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden border">
-              {settings.appIconUrl && (
-                <img src={settings.appIconUrl} className="w-full h-full object-cover" />
-              )}
-            </div>
-
-            <input type="file" accept="image/*" onChange={uploadIcon} />
-          </div>
-
-          <input
-            value={settings.contactRecipientEmail}
-            onChange={e => setSettings({ ...settings, contactRecipientEmail: e.target.value })}
-            className="input"
-          />
-
-          <button className="btn-primary w-full">Save Settings</button>
-        </motion.form>
-      )}
+    </div>
+  );
+}
