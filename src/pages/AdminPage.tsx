@@ -355,37 +355,52 @@ Mark Completed
 </motion.div>
 )}
 
-{/* SECURITY */}
-{activeTab==="security"&&(
-<motion.div className="bg-white rounded-3xl border shadow-sm p-8 space-y-5">
+{/* SETTINGS */}
+{activeTab==="settings"&&(
+<motion.form
+onSubmit={saveSettings}
+className="bg-white rounded-3xl border shadow-sm p-8 space-y-6"
+>
 
-{resetRequests.length===0?(
-<p className="text-stone-400 text-sm text-center">
-No password reset requests
-</p>
+<h3 className="font-semibold text-lg">
+Application Settings
+</h3>
+
+<div className="flex gap-6 items-center">
+
+<div className="w-24 h-24 rounded-2xl overflow-hidden border bg-stone-100 flex items-center justify-center">
+{settings.appIconUrl?(
+<img src={settings.appIconUrl} className="w-full h-full object-cover"/>
 ):(
-resetRequests.map(r=>(
-<div key={r.id} className="flex justify-between items-center border-b py-4">
+<span className="text-xs text-stone-400">No Icon</span>
+)}
+</div>
+
+<input
+type="file"
+accept="image/*"
+onChange={uploadIcon}
+/>
+
+</div>
 
 <div>
-<p className="font-semibold">{r.username}</p>
-<p className="text-sm text-stone-400">{r.email}</p>
+<label className="text-sm font-semibold mb-2 block">
+Contact Recipient Email
+</label>
+
+<input
+value={settings.contactRecipientEmail||""}
+onChange={e=>setSettings({...settings,contactRecipientEmail:e.target.value})}
+className="w-full px-4 py-3 rounded-2xl border bg-stone-50 focus:ring-2 focus:ring-black outline-none"
+/>
 </div>
 
-{r.status!=="completed"&&(
-<button
-className="px-4 py-2 rounded-xl bg-black text-white text-sm"
-onClick={()=>updateDoc(doc(db,"resetRequests",r.id),{status:"completed"})}
->
-Mark Completed
+<button className="w-full py-4 rounded-2xl bg-black text-white font-semibold">
+Save Settings
 </button>
-)}
 
-</div>
-))
-)}
-
-</motion.div>
+</motion.form>
 )}
 
 {/* SETTINGS */}
@@ -435,4 +450,3 @@ Save Settings
 
 </motion.form>
 )}
-
