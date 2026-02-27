@@ -449,7 +449,7 @@ Save Settings
 {activeTab==="notifications"&&(
 <motion.div className="max-w-2xl">
 
-<form onSubmit={sendNotification}
+<form onSubmit={sendNotification} className="notification-form">
 className="card-modern p-8 space-y-6">
 
 <input
