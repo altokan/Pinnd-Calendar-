@@ -1,30 +1,68 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, User, ShieldCheck, LogOut } from 'lucide-react';
 import { auth } from '../services/firebase';
 import { signOut } from 'firebase/auth';
+import { 
+  Home, 
+  User, 
+  ShieldCheck, 
+  LogOut, 
+  Map as MapIcon, 
+  Bell, 
+  PenTool,
+  PlusCircle
+} from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to logout?")) {
+    if (window.confirm("Do you want to logout?")) {
       await signOut(auth);
       navigate('/login');
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F9F8F6] flex flex-col">
-      {/* Content Area */}
-      <main className="flex-1 pb-24 p-4">{children}</main>
+    <div className="min-h-screen bg-[#F9F8F6] flex flex-col font-sans">
+      {/* منطقة المحتوى */}
+      <main className="flex-1 pb-32 p-4 overflow-y-auto">
+        {children}
+      </main>
 
-      {/* Bottom Navigation Bar (iOS Style) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-stone-100 flex justify-around p-4 pb-8 z-50">
-        <NavLink to="/" className={({isActive}) => isActive ? "text-stone-900" : "text-stone-300"}><Home size={28} /></NavLink>
-        <NavLink to="/profile" className={({isActive}) => isActive ? "text-stone-900" : "text-stone-300"}><User size={28} /></NavLink>
-        <NavLink to="/admin" className={({isActive}) => isActive ? "text-stone-900" : "text-stone-300"}><ShieldCheck size={28} /></NavLink>
-        <button onClick={handleLogout} className="text-rose-400"><LogOut size={28} /></button>
+      {/* البنر السفلي المحسن - أيقونات سوداء واضحة */}
+      <nav className="fixed bottom-6 left-6 right-6 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] rounded-[2.5rem] border border-stone-100 flex justify-around items-center p-4 z-[100]">
+        
+        {/* الرئيسية */}
+        <NavLink to="/" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
+          <Home size={24} strokeWidth={2.5} />
+        </NavLink>
+
+        {/* الخرائط */}
+        <NavLink to="/maps" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
+          <MapIcon size={24} strokeWidth={2.5} />
+        </NavLink>
+
+        {/* زر إضافة حدث - مميز في المنتصف */}
+        <NavLink to="/add-event" className="bg-stone-900 text-white p-3 rounded-2xl shadow-lg transform -translate-y-2 active:scale-90 transition-all">
+          <PlusCircle size={24} strokeWidth={2.5} />
+        </NavLink>
+
+        {/* التنبيهات */}
+        <NavLink to="/notifications" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
+          <Bell size={24} strokeWidth={2.5} />
+        </NavLink>
+
+        {/* البروفايل */}
+        <NavLink to="/profile" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
+          <User size={24} strokeWidth={2.5} />
+        </NavLink>
+
+        {/* زر الخروج السريع بلون أحمر خفيف */}
+        <button onClick={handleLogout} className="text-rose-300 hover:text-rose-500">
+          <LogOut size={24} strokeWidth={2.5} />
+        </button>
+
       </nav>
     </div>
   );
