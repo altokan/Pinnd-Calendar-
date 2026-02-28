@@ -6,7 +6,7 @@ import {
 import { 
   ChevronLeft, ChevronRight, Plus, Camera, 
   X, Save, Loader2, MapPin, Clock, Trash2, Edit3, 
-  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star, FileText, Search
+  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star, FileText, Bell, BellRing
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
@@ -25,6 +25,13 @@ const CATEGORIES = [
   { id: 'other', icon: Star, label: 'Other', color: 'bg-stone-500' },
 ];
 
+const REMINDER_OPTIONS = [
+  { id: '1d', label: 'Before 1 Day' },
+  { id: '5h', label: 'Before 5 Hours' },
+  { id: '1h', label: 'Before 1 Hour' },
+  { id: 'none', label: 'No Reminder' },
+];
+
 export default function CalendarPage() {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -41,6 +48,8 @@ export default function CalendarPage() {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('other');
+  const [reminder, setReminder] = useState('none');
+  const [showReminderMenu, setShowReminderMenu] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -48,48 +57,26 @@ export default function CalendarPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // مراقبة البيانات لحظياً (Real-time) لضمان التحديث بدون Refresh
+  // جلب البيانات مع التزامن اللحظي
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetchedPins = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPins(fetchedPins);
     });
     return () => unsubscribe();
   }, [user]);
 
-  // دالة لجلب مقترحات العناوين أثناء الكتابة
-  const fetchSuggestions = async (query: string) => {
-    if (query.length < 3) {
-      setSuggestions([]);
-      return;
-    }
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-      const data = await response.json();
+  const handleLocationChange = async (val: string) => {
+    setLocation(val);
+    if (val.length > 2) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=5`);
+      const data = await res.json();
       setSuggestions(data);
       setShowSuggestions(true);
-    } catch (error) {
-      console.error("Error fetching locations:", error);
-    }
-  };
-
-  const handleLocationChange = (val: string) => {
-    setLocation(val);
-    fetchSuggestions(val);
-  };
-
-  const selectSuggestion = (display_name: string) => {
-    setLocation(display_name);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.size <= 6 * 1024 * 1024) {
-      setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setSuggestions([]);
     }
   };
 
@@ -100,22 +87,32 @@ export default function CalendarPage() {
     setLocation(pin.location || '');
     setNotes(pin.notes || '');
     setCategory(pin.category || 'other');
+    setReminder(pin.reminder || 'none');
     setPreviewUrl(pin.imageUrl || null);
     setIsModalOpen(true);
   };
 
   const resetForm = () => {
     setEditingId(null); setTitle(''); setTime('12:00'); setLocation('');
-    setNotes(''); setCategory('other'); setImageFile(null); setPreviewUrl(null);
-    setIsModalOpen(false); setLoading(false); setSuggestions([]);
+    setNotes(''); setCategory('other'); setReminder('none'); setImageFile(null); 
+    setPreviewUrl(null); setIsModalOpen(false); setLoading(false); setShowReminderMenu(false);
   };
 
+  // --- دالة الحذف المحدثة (تحديث فوري) ---
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this event?")) return;
+    
+    // تحديث الحالة محلياً فوراً ليختفي العنصر أمام المستخدم
+    const previousPins = [...pins];
+    setPins(pins.filter(p => p.id !== id));
+
     try {
       await deleteDoc(doc(db, 'pins', id));
       toast.success('Deleted');
-    } catch (e) { toast.error('Delete failed'); }
+    } catch (e) {
+      setPins(previousPins); // إعادة العنصر في حال فشل السيرفر
+      toast.error('Delete failed');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,7 +130,7 @@ export default function CalendarPage() {
       }
 
       const pinData = {
-        title, time, location, notes, category,
+        title, time, location, notes, category, reminder,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: serverTimestamp(),
@@ -141,13 +138,14 @@ export default function CalendarPage() {
 
       if (editingId) {
         await updateDoc(doc(db, 'pins', editingId), pinData);
+        // التحديث اللحظي سيتم عبر onSnapshot تلقائياً
       } else {
         await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
       }
-      toast.success('Success!', { id: toastId });
+      toast.success('Done!', { id: toastId });
       resetForm();
     } catch (error: any) {
-      toast.error(error.message, { id: toastId });
+      toast.error("Error saving", { id: toastId });
     } finally { setLoading(false); }
   };
 
@@ -159,8 +157,8 @@ export default function CalendarPage() {
   const selectedDayPins = pins.filter(p => p.date === format(selectedDate, 'yyyy-MM-dd'));
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-700">
-      {/* Header - كما هو */}
+    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32">
+      {/* Header & Calendar Grid (تبقى كما هي تماماً) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
           <h2 className="text-6xl font-serif italic text-stone-900 tracking-tighter">{format(currentDate, 'MMMM')}</h2>
@@ -173,7 +171,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Grid - كما هو */}
       <div className="bg-white/70 backdrop-blur-md rounded-[3.5rem] overflow-hidden border-white border-4 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30 text-center py-6 text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
@@ -204,7 +201,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Timeline Panel - كما هو */}
+      {/* Timeline Panel */}
       <AnimatePresence>
         {isTimelineOpen && (
           <>
@@ -213,7 +210,7 @@ export default function CalendarPage() {
               <div className="w-16 h-1 bg-stone-100 rounded-full mx-auto mt-6 mb-2" />
               <div className="max-w-3xl mx-auto px-8 pb-20">
                 <div className="flex items-center justify-between mb-10 sticky top-0 bg-white/10 py-6 z-10 backdrop-blur-sm">
-                  <h3 className="text-4xl font-serif italic">{format(selectedDate, 'EEEE, MMM do')}</h3>
+                  <h3 className="text-4xl font-serif italic text-stone-900">{format(selectedDate, 'EEEE, MMM do')}</h3>
                   <button onClick={() => setIsModalOpen(true)} className="p-5 bg-stone-900 text-white rounded-[2rem] shadow-xl hover:scale-105 transition-transform"><Plus size={28} /></button>
                 </div>
                 <div className="space-y-4">
@@ -221,14 +218,16 @@ export default function CalendarPage() {
                     <div key={pin.id} className="flex items-center gap-6 p-6 bg-white rounded-[2.5rem] border-2 border-stone-50 shadow-sm group">
                       <div className="text-center min-w-[70px] border-r-2 border-stone-50 pr-6 font-black text-stone-900 uppercase text-sm">{pin.time}</div>
                       <div className="flex-1">
-                        <h4 className="text-lg font-bold text-stone-900">{pin.title}</h4>
+                        <div className="flex items-center gap-2">
+                           <h4 className="text-lg font-bold text-stone-900">{pin.title}</h4>
+                           {pin.reminder !== 'none' && <Bell size={12} className="text-amber-500" />}
+                        </div>
                         {pin.notes && <p className="text-xs text-stone-400 mt-1 italic line-clamp-1">{pin.notes}</p>}
                         {pin.location && <p className="text-[11px] font-bold text-blue-500 flex items-center gap-1 mt-1"><MapPin size={12} /> {pin.location}</p>}
                       </div>
-                      {pin.imageUrl && <img src={pin.imageUrl} className="w-16 h-16 object-cover rounded-[1.2rem] border-2 border-stone-50 shadow-sm" />}
                       <div className="flex gap-1">
-                        <button onClick={() => openEditModal(pin)} className="p-3 text-stone-400 hover:text-stone-900 hover:bg-stone-50 rounded-xl transition-all"><Edit3 size={18} /></button>
-                        <button onClick={() => handleDelete(pin.id)} className="p-3 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={18} /></button>
+                        <button onClick={() => openEditModal(pin)} className="p-3 text-stone-400 hover:text-stone-900 transition-all"><Edit3 size={18} /></button>
+                        <button onClick={() => handleDelete(pin.id)} className="p-3 text-stone-300 hover:text-rose-500 transition-all"><Trash2 size={18} /></button>
                       </div>
                     </div>
                   ))}
@@ -239,42 +238,28 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit Modal - التعديل هنا في حقل الموقع والمقترحات */}
+      {/* Modal مع خيار التذكير والمزامنة الفورية */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3.5rem] w-full max-w-xl p-10 shadow-3xl relative border-4 border-white">
               <button onClick={resetForm} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900"><X size={24}/></button>
-              <h3 className="text-2xl font-serif italic mb-8">{editingId ? 'Edit Event' : 'New Schedule'}</h3>
               
               <form onSubmit={handleSubmit} className="space-y-6">
-                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="What's happening?" className="w-full text-2xl font-serif italic border-none focus:ring-0 p-0 text-stone-900 outline-none placeholder:text-stone-200" />
-                
-                <div className="flex gap-3">
-                  <div className="bg-stone-50 p-4 rounded-2xl flex-1 flex items-center gap-3">
-                    <Clock size={18} className="text-stone-300" />
-                    <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
-                  </div>
+                <div className="flex justify-between items-center">
+                  <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="What's happening?" className="text-2xl font-serif italic border-none focus:ring-0 p-0 text-stone-900 outline-none w-full bg-transparent" />
                   
-                  {/* حقل الموقع مع المقترحات التلقائية */}
-                  <div className="relative flex-[2]">
-                    <div className="bg-stone-50 p-4 rounded-2xl flex items-center gap-3">
-                      <MapPin size={18} className="text-stone-300" />
-                      <input 
-                        value={location} 
-                        onChange={e => handleLocationChange(e.target.value)} 
-                        placeholder="Location..." 
-                        className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" 
-                      />
-                    </div>
-                    
-                    {/* قائمة المقترحات المنسدلة */}
+                  {/* زر التذكير الجديد */}
+                  <div className="relative">
+                    <button type="button" onClick={() => setShowReminderMenu(!showReminderMenu)} className={cn("p-3 rounded-xl transition-all", reminder !== 'none' ? "bg-amber-50 text-amber-500" : "bg-stone-50 text-stone-300")}>
+                      {reminder !== 'none' ? <BellRing size={20} /> : <Bell size={20} />}
+                    </button>
                     <AnimatePresence>
-                      {showSuggestions && suggestions.length > 0 && (
-                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute z-[70] left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-stone-100 max-h-48 overflow-y-auto overflow-x-hidden">
-                          {suggestions.map((s, i) => (
-                            <button key={i} type="button" onClick={() => selectSuggestion(s.display_name)} className="w-full text-left p-3 text-[10px] font-bold text-stone-600 hover:bg-stone-50 border-b border-stone-50 transition-colors">
-                              {s.display_name}
+                      {showReminderMenu && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-stone-100 z-50 overflow-hidden">
+                          {REMINDER_OPTIONS.map(opt => (
+                            <button key={opt.id} type="button" onClick={() => { setReminder(opt.id); setShowReminderMenu(false); }} className={cn("w-full text-left px-4 py-3 text-[11px] font-bold border-b border-stone-50 last:border-0 hover:bg-stone-50", reminder === opt.id ? "text-amber-500 bg-amber-50/30" : "text-stone-500")}>
+                              {opt.label}
                             </button>
                           ))}
                         </motion.div>
@@ -283,15 +268,33 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* حقل الملاحظات */}
-                <div className="bg-stone-50 p-4 rounded-2xl flex items-start gap-3">
-                  <FileText size={18} className="text-stone-300 mt-1" />
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Extra notes..." className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none h-16 resize-none" />
+                <div className="flex gap-3">
+                  <div className="bg-stone-50 p-4 rounded-2xl flex-1 flex items-center gap-3 border border-stone-100">
+                    <Clock size={18} className="text-stone-300" />
+                    <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
+                  </div>
+                  <div className="relative flex-[2]">
+                    <div className="bg-stone-50 p-4 rounded-2xl flex items-center gap-3 border border-stone-100">
+                      <MapPin size={18} className="text-stone-300" />
+                      <input value={location} onChange={e => handleLocationChange(e.target.value)} placeholder="Location..." className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
+                    </div>
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-stone-100 max-h-40 overflow-auto">
+                        {suggestions.map((s, i) => (
+                          <button key={i} type="button" onClick={() => { setLocation(s.display_name); setSuggestions([]); setShowSuggestions(false); }} className="w-full text-left p-3 text-[10px] font-bold text-stone-500 hover:bg-stone-50 border-b border-stone-50">{s.display_name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* خريطة المعاينة التفاعلية */}
+                <div className="bg-stone-50 p-4 rounded-2xl flex items-start gap-3 border border-stone-100">
+                  <FileText size={18} className="text-stone-300 mt-1" />
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes..." className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none h-16 resize-none" />
+                </div>
+
                 {location && (
-                  <div className="h-32 w-full rounded-2xl overflow-hidden border-2 border-stone-50 grayscale hover:grayscale-0 transition-all">
+                  <div className="h-32 w-full rounded-2xl overflow-hidden border-2 border-stone-100 grayscale hover:grayscale-0 transition-all">
                     <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`} />
                   </div>
                 )}
@@ -306,10 +309,13 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="flex gap-4 items-center">
-                   <label className="flex-1 flex items-center justify-center gap-3 p-4 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200">
-                      <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
+                   <label className="flex-1 flex items-center justify-center gap-3 p-4 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200 hover:bg-stone-100">
+                      <input type="file" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) { setImageFile(file); setPreviewUrl(URL.createObjectURL(file)); }
+                      }} className="hidden" accept="image/*" />
                       {previewUrl ? <img src={previewUrl} className="w-8 h-8 object-cover rounded-lg" /> : <Camera size={20} className="text-stone-300" />}
-                      <span className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Image</span>
+                      <span className="text-[10px] font-black text-stone-500 uppercase">Visual</span>
                    </label>
                    <button disabled={loading} type="submit" className="flex-[2] py-5 bg-stone-900 text-white rounded-[1.8rem] font-black shadow-xl flex items-center justify-center gap-3 hover:bg-black transition-all">
                       {loading ? <Loader2 className="animate-spin" /> : <><Save size={18} /> {editingId ? 'Update' : 'Confirm'}</>}
