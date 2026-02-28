@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
-import { Loader2, Info, Plus } from 'lucide-react';
+import { MapPin, Navigation, Loader2, Info, Plus } from 'lucide-react';
 
 // استيراد مكتبة الخرائط
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -19,16 +19,26 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// مكون التحكم في الزوم الذكي (Smart Zoom)
+// --- التحديث: مكون التحكم في الزوم الذكي المتطور ---
 const MapAutoZoom = ({ events }: { events: any[] }) => {
   const map = useMap();
+  
   useEffect(() => {
     if (events.length > 0) {
+      // 1. حساب متوسط الإحداثيات (المركز الجغرافي للدبابيس)
       const avgLat = events.reduce((sum, e) => sum + e.lat, 0) / events.length;
       const avgLng = events.reduce((sum, e) => sum + e.lng, 0) / events.length;
+
+      // 2. تحديد الحدود الجغرافية لتشمل جميع الدبابيس
       const bounds = L.latLngBounds(events.map(e => [e.lat, e.lng]));
 
-      map.flyTo([avgLat, avgLng], 10, { animate: true, duration: 2 });
+      // 3. حركة انسيابية للمركز (Focus on Density)
+      map.flyTo([avgLat, avgLng], map.getZoom() > 10 ? map.getZoom() : 10, {
+        animate: true,
+        duration: 2
+      });
+
+      // 4. ضبط الزوم النهائي ليشمل الجميع بعد انتهاء الحركة
       const timer = setTimeout(() => {
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
       }, 2100);
@@ -45,54 +55,55 @@ const MapsPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // جلب البيانات من مجموعتي "events" و "pins" (التقويم) لضمان الربط
     const qEvents = query(collection(db, "events"));
     const qPins = query(collection(db, "pins"));
 
+    // دالة لمعالجة البيانات المدمجة
     const processData = (snapshot: any, source: string) => {
-      return snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        source 
-      }));
+        return snapshot.docs.map((doc: any) => ({
+            id: doc.id,
+            ...doc.data(),
+            source // لتمييز مصدر الدبوس إذا أردت
+        }));
     };
 
+    const unsubEvents = onSnapshot(qEvents, (snap) => {
+        const eventsData = processData(snap, 'event');
+        updateState(eventsData, 'events');
+    });
+
+    const unsubPins = onSnapshot(qPins, (snap) => {
+        const pinsData = processData(snap, 'pin');
+        updateState(pinsData, 'pins');
+    });
+
+    // دالة لتحديث الحالة ودمج البيانات من المصدرين
     let allData: any[] = [];
     const updateState = (newData: any[], type: string) => {
-      if (type === 'events') {
-        allData = [...newData, ...allData.filter(d => d.source === 'pin')];
-      } else {
-        allData = [...newData, ...allData.filter(d => d.source === 'event')];
-      }
-      const validEvents = allData.filter(e => 
-        typeof e.lat === 'number' && typeof e.lng === 'number'
-      );
-      setEvents(validEvents);
-      setLoading(false);
+        if (type === 'events') {
+            allData = [...newData, ...allData.filter(d => d.source === 'pin')];
+        } else {
+            allData = [...newData, ...allData.filter(d => d.source === 'event')];
+        }
+        
+        const validEvents = allData.filter(e => 
+            typeof e.lat === 'number' && typeof e.lng === 'number'
+        );
+        setEvents(validEvents);
+        setLoading(false);
     };
-
-    const unsubEvents = onSnapshot(qEvents, (snap) => updateState(processData(snap, 'event'), 'events'));
-    const unsubPins = onSnapshot(qPins, (snap) => updateState(processData(snap, 'pin'), 'pins'));
 
     return () => { unsubEvents(); unsubPins(); };
   }, []);
 
-  // تجميع الأحداث التي لها نفس الإحداثيات بالضبط
-  const groupedEvents = Object.values(
-    events.reduce((acc: any, event) => {
-      const key = `${event.lat}-${event.lng}`;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(event);
-      return acc;
-    }, {})
-  );
-
   return (
     <div className="flex flex-col h-[calc(100vh-180px)] space-y-4 font-sans" dir="ltr">
-      {/* Header */}
+      {/* Header القسم العلوي */}
       <div className="flex justify-between items-center px-2">
         <div>
           <h1 className="text-3xl font-black text-stone-900 italic tracking-tighter uppercase">Maps</h1>
-          <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em]">Smart Event Tracker</p>
+          <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em]">Live Pins Explorer</p>
         </div>
         <button 
           onClick={() => navigate('/add-event')}
@@ -107,6 +118,7 @@ const MapsPage: React.FC = () => {
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-white/60 backdrop-blur-md">
             <Loader2 className="animate-spin text-stone-900 mb-2" size={32} />
+            <span className="text-[10px] font-black text-stone-400 tracking-widest uppercase">Fetching Locations...</span>
           </div>
         ) : (
           <MapContainer 
@@ -115,52 +127,42 @@ const MapsPage: React.FC = () => {
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
           >
+            {/* شكل الخريطة */}
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; OpenStreetMap'
             />
             
+            {/* تفعيل الزوم التلقائي الذكي */}
             <MapAutoZoom events={events} />
 
-            {groupedEvents.map((group: any, idx) => {
-              const firstEvent = group[0];
-              const isMultiple = group.length > 1;
-
-              return (
-                <Marker key={idx} position={[firstEvent.lat, firstEvent.lng]}>
-                  <Popup className="custom-popup">
-                    <div className="p-1 text-center min-w-[160px]">
-                      {isMultiple && (
-                        <div className="mb-2 border-b border-stone-100 pb-1">
-                          <span className="text-[8px] font-black text-amber-600 uppercase">
-                            {group.length} Events here
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="space-y-4 max-h-[200px] overflow-y-auto no-scrollbar">
-                        {group.map((e: any) => (
-                          <div key={e.id} className="flex flex-col items-center">
-                            <h3 className="font-black text-stone-900 m-0 text-sm leading-tight">{e.title}</h3>
-                            <p className="text-[9px] text-stone-400 font-bold uppercase mt-0.5">{e.date}</p>
-                            <button 
-                              onClick={() => navigate(`/?date=${e.date}&openEvent=${e.id}`)}
-                              className="mt-2 px-4 py-1.5 bg-stone-900 text-white text-[10px] font-black rounded-lg uppercase w-full"
-                            >
-                              Open in Calendar
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+            {events.map((event) => (
+              <Marker 
+                key={event.id} 
+                position={[event.lat, event.lng]}
+              >
+                <Popup className="custom-popup">
+                  <div className="p-1">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${event.source === 'pin' ? 'bg-blue-500' : 'bg-rose-500'}`} />
+                        <h3 className="font-black text-stone-900 m-0">{event.title}</h3>
                     </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
+                    <p className="text-[10px] text-stone-400 font-bold m-0 uppercase tracking-tighter">{event.date}</p>
+                    <button 
+                      onClick={() => navigate(event.source === 'pin' ? '/' : `/event/${event.id}`)}
+                      className="mt-2 text-[10px] font-black text-stone-900 uppercase underline"
+                    >
+                      {event.source === 'pin' ? 'View in Calendar' : 'View Details'}
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
           </MapContainer>
         )}
 
         {/* كارت المعلومات العائم */}
-        <div className="absolute bottom-6 left-6 z-[1000] bg-stone-900/90 backdrop-blur-xl p-4 rounded-3xl border border-white/10 shadow-2xl flex items-center gap-4">
+        <div className="absolute bottom-6 left-6 z-[1000] bg-stone-900/90 backdrop-blur-xl p-4 rounded-3xl border border-white/10 shadow-2xl flex items-center gap-4 pointer-events-none">
           <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-white">
             <Info size={18} />
           </div>
