@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// إضافة useSearchParams للتعامل مع الروابط
+// استخدام useSearchParams للربط مع روابط الخريطة
 import { useSearchParams } from 'react-router-dom';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
@@ -36,7 +36,7 @@ const REMINDER_OPTIONS = [
 
 export default function CalendarPage() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams(); // استخدام متغيرات الرابط
+  const [searchParams] = useSearchParams();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [pins, setPins] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,7 +63,7 @@ export default function CalendarPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // جلب البيانات مع التزامن اللحظي
+  // 1. جلب البيانات اللحظية
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
@@ -74,7 +74,7 @@ export default function CalendarPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // --- التحديث: منطق الربط مع الخريطة ---
+  // 2. تحديث: استقبال البيانات من الخريطة (Deep Linking)
   useEffect(() => {
     const dateParam = searchParams.get('date');
     const openEventId = searchParams.get('openEvent');
@@ -83,7 +83,7 @@ export default function CalendarPage() {
       try {
         const parsedDate = parseISO(dateParam);
         setSelectedDate(parsedDate);
-        setCurrentDate(parsedDate); // لتغيير عرض شهر التقويم أيضاً
+        setCurrentDate(parsedDate); // نقل عرض التقويم للشهر المطلوب
         setIsTimelineOpen(true);
 
         if (openEventId) {
@@ -94,10 +94,10 @@ export default function CalendarPage() {
           }
         }
       } catch (e) {
-        console.error("Error parsing date from URL", e);
+        console.error("Link processing error", e);
       }
     }
-  }, [searchParams, pins]); 
+  }, [searchParams, pins]);
 
   const handleLocationChange = async (val: string) => {
     setLocation(val);
@@ -135,14 +135,11 @@ export default function CalendarPage() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this event?")) return;
-    const previousPins = [...pins];
-    setPins(pins.filter(p => p.id !== id));
-    setIsPreviewOpen(false);
     try {
       await deleteDoc(doc(db, 'pins', id));
+      setIsPreviewOpen(false);
       toast.success('Deleted');
     } catch (e) {
-      setPins(previousPins);
       toast.error('Delete failed');
     }
   };
@@ -165,13 +162,6 @@ export default function CalendarPage() {
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: new Date(),
       };
-      const tempId = editingId || Date.now().toString();
-      const newPin = { id: tempId, ...pinData, userId: user.uid };
-      if (!editingId) {
-        setPins(prev => [newPin, ...prev]);
-      } else {
-        setPins(prev => prev.map(p => p.id === editingId ? { ...p, ...pinData } : p));
-      }
       if (editingId) {
         await updateDoc(doc(db, 'pins', editingId), { ...pinData, updatedAt: serverTimestamp() });
       } else {
@@ -247,7 +237,7 @@ export default function CalendarPage() {
               <div className="max-w-3xl mx-auto px-8 pb-20">
                 <div className="flex items-center justify-between mb-10 sticky top-0 bg-white/10 py-6 z-10 backdrop-blur-sm">
                   <h3 className="text-4xl font-serif italic text-stone-900">{format(selectedDate, 'EEEE, MMM do')}</h3>
-                  <button onClick={() => setIsModalOpen(true)} className="p-5 bg-stone-900 text-white rounded-[2rem] shadow-xl hover:scale-105 transition-transform"><Plus size={28} /></button>
+                  <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="p-5 bg-stone-900 text-white rounded-[2rem] shadow-xl hover:scale-105 transition-transform"><Plus size={28} /></button>
                 </div>
                 <div className="space-y-4">
                   {selectedDayPins.length > 0 ? selectedDayPins.map((pin) => (
@@ -266,7 +256,7 @@ export default function CalendarPage() {
                   )) : (
                     <div className="flex flex-col items-center justify-center py-20 text-stone-300 gap-4">
                         <CalendarIcon size={64} strokeWidth={1} />
-                        <p className="font-serif italic text-xl">No events scheduled for today</p>
+                        <p className="font-serif italic text-xl">No events scheduled</p>
                     </div>
                   )}
                 </div>
@@ -288,11 +278,7 @@ export default function CalendarPage() {
                   <div className="w-full h-full flex items-center justify-center text-stone-200"><Camera size={48} /></div>
                 )}
                 <button onClick={() => setIsPreviewOpen(false)} className="absolute top-6 right-6 p-3 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-stone-900 transition-all"><X size={20}/></button>
-                <div className={cn("absolute bottom-6 left-6 px-4 py-2 rounded-xl text-white text-[10px] font-black uppercase tracking-widest", CATEGORIES.find(c => c.id === selectedPin.category)?.color)}>
-                  {selectedPin.category}
-                </div>
               </div>
-
               <div className="p-8 space-y-6">
                 <div className="flex justify-between items-start">
                   <h3 className="text-4xl font-serif italic text-stone-900">{selectedPin.title}</h3>
@@ -301,45 +287,17 @@ export default function CalendarPage() {
                     <button onClick={() => handleDelete(selectedPin.id)} className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all"><Trash2 size={20} /></button>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
                     <Clock className="text-stone-400" size={20} />
-                    <div>
-                      <p className="text-[9px] font-black text-stone-400 uppercase">Time</p>
-                      <p className="text-sm font-bold text-stone-900">{selectedPin.time}</p>
-                    </div>
+                    <p className="text-sm font-bold text-stone-900">{selectedPin.time}</p>
                   </div>
                   <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                    <BellRing className="text-amber-500" size={20} />
-                    <div>
-                      <p className="text-[9px] font-black text-stone-400 uppercase">Reminder</p>
-                      <p className="text-sm font-bold text-stone-900">{REMINDER_OPTIONS.find(o => o.id === selectedPin.reminder)?.label}</p>
-                    </div>
+                    <MapPin className="text-blue-500" size={20} />
+                    <p className="text-sm font-bold text-stone-900 truncate">{selectedPin.location || 'No Location'}</p>
                   </div>
                 </div>
-
-                {selectedPin.notes && (
-                  <div className="p-6 bg-stone-50 rounded-[2rem] border border-stone-100">
-                    <div className="flex items-center gap-2 mb-2 text-stone-400">
-                      <FileText size={16} />
-                      <span className="text-[10px] font-black uppercase">Notes</span>
-                    </div>
-                    <p className="text-stone-600 text-sm leading-relaxed">{selectedPin.notes}</p>
-                  </div>
-                )}
-
-                {selectedPin.location && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-stone-400">
-                      <MapPin size={16} />
-                      <span className="text-[10px] font-black uppercase truncate">{selectedPin.location}</span>
-                    </div>
-                    <div className="h-40 w-full rounded-[2rem] overflow-hidden grayscale border-2 border-stone-50">
-                      <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedPin.location)}&output=embed`} />
-                    </div>
-                  </div>
-                )}
+                {selectedPin.notes && <p className="p-6 bg-stone-50 rounded-[2rem] text-stone-600 text-sm">{selectedPin.notes}</p>}
               </div>
             </motion.div>
           </div>
@@ -352,28 +310,8 @@ export default function CalendarPage() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3.5rem] w-full max-w-xl p-10 shadow-3xl relative border-4 border-white">
               <button onClick={resetForm} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900"><X size={24}/></button>
-              
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="What's happening?" className="text-2xl font-serif italic border-none focus:ring-0 p-0 text-stone-900 outline-none w-full bg-transparent" />
-                  <div className="relative">
-                    <button type="button" onClick={() => setShowReminderMenu(!showReminderMenu)} className={cn("p-3 rounded-xl transition-all", reminder !== 'none' ? "bg-amber-50 text-amber-500" : "bg-stone-50 text-stone-300")}>
-                      {reminder !== 'none' ? <BellRing size={20} /> : <Bell size={20} />}
-                    </button>
-                    <AnimatePresence>
-                      {showReminderMenu && (
-                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-stone-100 z-50 overflow-hidden">
-                          {REMINDER_OPTIONS.map(opt => (
-                            <button key={opt.id} type="button" onClick={() => { setReminder(opt.id); setShowReminderMenu(false); }} className={cn("w-full text-left px-4 py-3 text-[11px] font-bold border-b border-stone-50 last:border-0 hover:bg-stone-50", reminder === opt.id ? "text-amber-500 bg-amber-50/30" : "text-stone-500")}>
-                              {opt.label}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
+                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="What's happening?" className="text-2xl font-serif italic border-none focus:ring-0 p-0 text-stone-900 outline-none w-full bg-transparent" />
                 <div className="flex gap-3">
                   <div className="bg-stone-50 p-4 rounded-2xl flex-1 flex items-center gap-3 border border-stone-100">
                     <Clock size={18} className="text-stone-300" />
@@ -399,40 +337,20 @@ export default function CalendarPage() {
                     )}
                   </div>
                 </div>
-
-                <div className="bg-stone-50 p-4 rounded-2xl flex items-start gap-3 border border-stone-100">
-                  <FileText size={18} className="text-stone-300 mt-1" />
+                <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100">
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes..." className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none h-16 resize-none" />
                 </div>
-
-                {location && (
-                  <div className="h-32 w-full rounded-2xl overflow-hidden border-2 border-stone-100 grayscale hover:grayscale-0 transition-all">
-                    <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(location)}&output=embed`} />
-                  </div>
-                )}
-
                 <div className="grid grid-cols-3 gap-2">
                   {CATEGORIES.map(cat => (
                     <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn("flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all", category === cat.id ? "bg-stone-900 border-stone-900 text-white shadow-md" : "bg-white border-stone-50 text-stone-300")}>
                       <cat.icon size={18} />
-                      <span className="text-[8px] font-black uppercase tracking-tighter">{cat.label}</span>
+                      <span className="text-[8px] font-black uppercase">{cat.label}</span>
                     </button>
                   ))}
                 </div>
-
-                <div className="flex gap-4 items-center">
-                   <label className="flex-1 flex items-center justify-center gap-3 p-4 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200 hover:bg-stone-100 transition-all">
-                      <input type="file" onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) { setImageFile(file); setPreviewUrl(URL.createObjectURL(file)); }
-                      }} className="hidden" accept="image/*" />
-                      {previewUrl ? <img src={previewUrl} className="w-8 h-8 object-cover rounded-lg" /> : <Camera size={20} className="text-stone-300" />}
-                      <span className="text-[10px] font-black text-stone-500 uppercase">Visual</span>
-                   </label>
-                   <button disabled={loading} type="submit" className="flex-[2] py-5 bg-stone-900 text-white rounded-[1.8rem] font-black shadow-xl flex items-center justify-center gap-3 hover:bg-black transition-all">
-                      {loading ? <Loader2 className="animate-spin" /> : <><Save size={18} /> {editingId ? 'Update' : 'Confirm'}</>}
-                   </button>
-                </div>
+                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-[1.8rem] font-black shadow-xl hover:bg-black transition-all">
+                  {loading ? <Loader2 className="animate-spin mx-auto" /> : (editingId ? 'Update Event' : 'Create Event')}
+                </button>
               </form>
             </motion.div>
           </div>
