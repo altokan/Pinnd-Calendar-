@@ -8,11 +8,11 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getStorage } from "firebase/storage"; // استيراد خدمة التخزين
 import { getMessaging } from "firebase/messaging";
 
 /* -------------------------------------------------- */
-/* ✅ Check Firebase Config                           */
+/* ✅ التحقق من وجود الإعدادات                        */
 /* -------------------------------------------------- */
 
 export const isFirebaseConfigured =
@@ -20,7 +20,7 @@ export const isFirebaseConfigured =
   import.meta.env.VITE_FIREBASE_API_KEY !== "placeholder";
 
 /* -------------------------------------------------- */
-/* ✅ Firebase Config                                 */
+/* ✅ إعدادات Firebase                                */
 /* -------------------------------------------------- */
 
 export const firebaseConfig = {
@@ -34,43 +34,44 @@ export const firebaseConfig = {
 };
 
 /* -------------------------------------------------- */
-/* ✅ Initialize App                                  */
+/* ✅ تهيئة التطبيق                                   */
 /* -------------------------------------------------- */
 
 const app = initializeApp(firebaseConfig);
 
 /* -------------------------------------------------- */
-/* ✅ Auth                                            */
+/* ✅ خدمة المصادقة (Auth)                            */
 /* -------------------------------------------------- */
 
 export const auth = getAuth(app);
 
 /* -------------------------------------------------- */
-/* ✅ Firestore (Offline + Multi Tabs)                */
+/* ✅ خدمة قواعد البيانات (Firestore)                 */
 /* -------------------------------------------------- */
 
-let db;
+let db: any;
 
 try {
+  // تفعيل الكاش للعمل بدون إنترنت ودعم تعدد التبويبات
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager(),
     }),
   });
-} catch {
+} catch (e) {
   db = getFirestore(app);
 }
 
 export { db };
 
 /* -------------------------------------------------- */
-/* ✅ Storage                                         */
+/* ✅ خدمة التخزين (Storage) - المسؤولة عن رفع الصور   */
 /* -------------------------------------------------- */
 
-export const storage = getStorage(app);
+export const storage = getStorage(app); // تم التأكد من تصديرها هنا
 
 /* -------------------------------------------------- */
-/* ✅ Messaging (Push Notifications)                  */
+/* ✅ خدمة الرسائل (Messaging)                        */
 /* -------------------------------------------------- */
 
 let messaging: any = null;
@@ -79,12 +80,10 @@ if (typeof window !== "undefined") {
   try {
     messaging = getMessaging(app);
   } catch (e) {
-    console.warn("Messaging not supported");
+    console.warn("Messaging not supported in this browser");
   }
 }
 
 export { messaging };
-
-/* -------------------------------------------------- */
 
 export default app;
