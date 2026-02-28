@@ -1,101 +1,107 @@
-import React from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { useTheme } from '../ThemeContext';
-import { isFirebaseConfigured } from '../services/firebase';
+import React, { useState } from 'react';
+import { useNavigate, NavLink } from 'react-router-dom';
+import { auth } from '../services/firebase';
+import { signOut } from 'firebase/auth';
 import { 
-  ChevronLeft, Shield, PlusCircle, AlertTriangle, Palette, 
-  MessageSquare, Calendar, Map, PenTool, Bell, User 
+  Home, 
+  User, 
+  Settings, 
+  ShieldCheck, 
+  LogOut, 
+  Bell, 
+  Menu, 
+  X 
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
-import { cn } from '../lib/utils';
-import EventModal from './EventModal';
+import toast from 'react-hot-toast';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile, isAdmin } = useAuth();
-  const { theme, updateTheme } = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [showThemeMenu, setShowThemeMenu] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const showBackButton = location.pathname !== '/';
+  const handleLogout = async () => {
+    try {
+      if (window.confirm("Are you sure you want to log out?")) {
+        await signOut(auth);
+        toast.success("Logged out");
+        navigate('/login');
+      }
+    } catch (error) {
+      toast.error("Logout failed");
+    }
+  };
 
   const navItems = [
-    { icon: <Calendar size={24} />, label: 'Calendar', path: '/' },
-    { icon: <Map size={24} />, label: 'Explore', path: '/map' },
-    { icon: <PenTool size={24} />, label: 'Sketch', path: '/sketch' },
-    { icon: <Bell size={24} />, label: 'Alerts', path: '/notifications' },
-    { icon: <User size={24} />, label: 'Profile', path: '/profile' },
+    { path: '/', icon: <Home size={24} />, label: 'Home' },
+    { path: '/notifications', icon: <Bell size={24} />, label: 'Alerts' },
+    { path: '/profile', icon: <User size={24} />, label: 'Profile' },
+    { path: '/admin', icon: <ShieldCheck size={24} />, label: 'Admin', adminOnly: true },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col transition-colors duration-300 bg-[#F9F8F6] text-stone-900">
-      <header className={cn(
-        "sticky top-0 z-40 border-b px-6 py-4 transition-all",
-        theme.glassmorphism ? "glass backdrop-blur-md bg-white/70" : "bg-white border-stone-100"
-      )}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {showBackButton && (
-              <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-xl">
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <Link to="/" className="text-xl font-serif italic font-bold text-stone-800">Pinned</Link>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <Link to="/admin" className="p-2.5 bg-rose-50 rounded-xl text-rose-500 animate-pulse">
-                <Shield size={20} />
-              </Link>
-            )}
-            <Link to="/contact" className="p-2.5 hover:bg-stone-100 rounded-xl text-stone-500">
-              <MessageSquare size={20} />
-            </Link>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#F9F8F6] flex flex-col font-sans" dir="ltr">
+      
+      {/* 📱 Mobile Top Header */}
+      <header className="md:hidden flex items-center justify-between p-5 bg-white border-b border-stone-100 sticky top-0 z-40">
+        <h1 className="text-xl font-black tracking-tighter text-stone-900">PINNED</h1>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-stone-600">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6 pb-40">
-        <AnimatePresence mode="wait">
-          <motion.div key={location.pathname} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-            {children}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-50">
-        <nav className={cn(
-          "h-20 rounded-[2.5rem] shadow-2xl flex items-center justify-around px-4 border border-white/40",
-          theme.glassmorphism ? "bg-white/70 backdrop-blur-2xl" : "bg-white"
-        )}>
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link key={item.path} to={item.path} className="flex flex-col items-center gap-1 group relative">
-                <div 
-                  className={cn("p-3 rounded-2xl transition-all duration-300", isActive ? "text-white shadow-lg -translate-y-4 scale-110" : "text-stone-400")}
-                  style={isActive ? { backgroundColor: theme.primaryColor } : {}}
-                >
-                  {item.icon}
-                </div>
-              </Link>
-            );
-          })}
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="p-4 rounded-full shadow-xl hover:scale-110 active:scale-95 transition-all text-white border-4 border-white"
-            style={{ backgroundColor: theme.primaryColor }}
-          >
-            <PlusCircle size={24} />
+      <div className="flex flex-1 overflow-hidden">
+        {/* 💻 Sidebar for Desktop / Tablet */}
+        <aside className="hidden md:flex w-64 bg-white border-r border-stone-100 flex-col p-6 space-y-8">
+          <h1 className="text-2xl font-black text-stone-900 mb-4">PINNED</h1>
+          <nav className="flex-1 space-y-2">
+            {navItems.map(item => (
+              <NavLink 
+                key={item.path} 
+                to={item.path} 
+                className={({isActive}) => `flex items-center gap-3 p-4 rounded-2xl font-bold transition-all ${isActive ? 'bg-stone-900 text-white' : 'text-stone-400 hover:bg-stone-50'}`}
+              >
+                {item.icon} {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <button onClick={handleLogout} className="flex items-center gap-3 p-4 text-rose-500 font-bold hover:bg-rose-50 rounded-2xl transition-all">
+            <LogOut size={22} /> Logout
           </button>
-        </nav>
+        </aside>
+
+        {/* 📱 Mobile Full-screen Overlay Menu */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+              className="fixed inset-0 z-50 bg-white p-8 md:hidden flex flex-col justify-center space-y-6 text-center"
+            >
+              <button onClick={() => setIsMobileMenuOpen(false)} className="absolute top-6 right-6 p-2 bg-stone-50 rounded-full"><X/></button>
+              {navItems.map(item => (
+                <NavLink key={item.path} to={item.path} onClick={() => setIsMobileMenuOpen(false)} className="text-3xl font-black text-stone-900">{item.label}</NavLink>
+              ))}
+              <button onClick={handleLogout} className="text-3xl font-black text-rose-500 pt-10 flex items-center justify-center gap-2"><LogOut/> Logout</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 🏠 Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 pb-24 md:pb-8">
+          {children}
+        </main>
       </div>
 
-      <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} initialDate={new Date()} />
+      {/* 📱 Mobile Bottom Tab Bar (Very Important for Mobile) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-stone-100 flex justify-around p-4 z-40 shadow-2xl rounded-t-[2.5rem]">
+        {navItems.map(item => (
+          <NavLink 
+            key={item.path} 
+            to={item.path} 
+            className={({isActive}) => `p-3 rounded-2xl transition-all ${isActive ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-300'}`}
+          >
+            {item.icon}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 };
