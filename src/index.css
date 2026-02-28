@@ -53,3 +53,26 @@
     @apply bg-white/70 backdrop-blur-xl border border-white/40 rounded-3xl shadow-sm hover:shadow-md transition-all;
   }
 }
+
+/* --- Leaflet Maps Fixes --- */
+/* إصلاح اختفاء أيقونات الدبابيس الافتراضية */
+.leaflet-default-icon-path {
+  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
+}
+
+/* التأكد من أن حاوية الخريطة تأخذ المساحة الكاملة وتتناسق مع التصميم */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  border-radius: inherit; /* لترث انحناء الحواف من الحاوية الأب */
+}
+
+/* تحسين شكل الـ Popup ليكون متناسقاً مع ثيم Stone */
+.leaflet-popup-content-wrapper {
+  @apply bg-white/90 backdrop-blur-md border border-stone-100 rounded-2xl shadow-xl font-sans;
+}
+
+.leaflet-popup-tip {
+  @apply bg-white/90;
+}
