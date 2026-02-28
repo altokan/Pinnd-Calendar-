@@ -39,18 +39,33 @@ export default function CalendarPage() {
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('12:00');
   const [location, setLocation] = useState('');
-  const [notes, setNotes] = useState(''); // حقل الملاحظات
+  const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('other');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // جلب البيانات مع التحديث اللحظي
+  // --- الحل الجذري لمشكلة التحديث الفوري ---
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+    
+    // إنشاء استعلام يراقب التغييرات لحظياً
+    const q = query(
+      collection(db, 'pins'), 
+      where('userId', '==', user.uid), 
+      orderBy('createdAt', 'desc')
+    );
+
+    // هذا الجزء هو المسؤول عن تحديث الشاشة فوراً عند أي حذف أو تعديل في Firebase
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const updatedPins = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPins(updatedPins); // سيتم تحديث التقويم والقائمة فوراً هنا
+    }, (error) => {
+      console.error("Snapshot error:", error);
     });
+
     return () => unsubscribe();
   }, [user]);
 
@@ -68,7 +83,7 @@ export default function CalendarPage() {
     setTitle(pin.title);
     setTime(pin.time);
     setLocation(pin.location || '');
-    setNotes(pin.notes || ''); // تحميل الملاحظات عند التعديل
+    setNotes(pin.notes || '');
     setCategory(pin.category || 'other');
     setPreviewUrl(pin.imageUrl || null);
     setIsModalOpen(true);
@@ -83,9 +98,12 @@ export default function CalendarPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this event?")) return;
     try {
+      // الحذف من Firebase، وبما أننا نستخدم onSnapshot، ستختفي من الشاشة فوراً
       await deleteDoc(doc(db, 'pins', id));
       toast.success('Deleted');
-    } catch (e) { toast.error('Error deleting'); }
+    } catch (e) { 
+      toast.error('Error deleting'); 
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,13 +131,19 @@ export default function CalendarPage() {
         await updateDoc(doc(db, 'pins', editingId), pinData);
         toast.success('Updated!', { id: toastId });
       } else {
-        await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'pins'), { 
+          ...pinData, 
+          userId: user.uid, 
+          createdAt: serverTimestamp() 
+        });
         toast.success('Saved!', { id: toastId });
       }
       resetForm();
     } catch (error: any) {
       toast.error(error.message, { id: toastId });
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const calendarDays = eachDayOfInterval({
@@ -146,10 +170,8 @@ export default function CalendarPage() {
 
       {/* Calendar Grid */}
       <div className="bg-white/70 backdrop-blur-md rounded-[3.5rem] overflow-hidden border-white border-4 shadow-2xl relative z-10">
-        <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-6 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">{day}</div>
-          ))}
+        <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30 text-center py-6 text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
         </div>
         <div className="grid grid-cols-7">
           {calendarDays.map((day, idx) => {
@@ -158,17 +180,17 @@ export default function CalendarPage() {
             return (
               <div key={idx} onClick={() => { setSelectedDate(day); setIsTimelineOpen(true); }}
                 className={cn(
-                  "min-h-[140px] p-4 border-r border-b border-stone-50 cursor-pointer hover:bg-white/50 transition-all group",
+                  "min-h-[140px] p-4 border-r border-b border-stone-50 cursor-pointer hover:bg-white transition-all group",
                   !isCurrentMonth && "opacity-20 pointer-events-none",
                   isSameDay(day, selectedDate) && "bg-white/80"
                 )}>
                 <span className={cn(
-                  "inline-flex w-9 h-9 items-center justify-center rounded-xl text-sm font-bold mb-4",
+                  "inline-flex w-9 h-9 items-center justify-center rounded-xl text-sm font-bold mb-4 transition-all",
                   isToday(day) ? "bg-stone-900 text-white shadow-lg" : "text-stone-800 border border-stone-100"
                 )}>{format(day, 'd')}</span>
                 <div className="flex flex-col gap-1.5">
                   {dayPins.slice(0, 2).map((pin, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-lg border border-stone-50 shadow-sm">
+                    <div key={pin.id} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-lg border border-stone-50 shadow-sm overflow-hidden animate-in fade-in zoom-in-95">
                        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", CATEGORIES.find(c => c.id === pin.category)?.color)} />
                        <span className="text-[8px] font-bold truncate uppercase text-stone-500">{pin.title}</span>
                     </div>
@@ -188,14 +210,14 @@ export default function CalendarPage() {
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl rounded-t-[4rem] shadow-2xl z-50 max-h-[80vh] overflow-y-auto border-t-4 border-white">
               <div className="w-16 h-1 bg-stone-100 rounded-full mx-auto mt-6 mb-2" />
               <div className="max-w-3xl mx-auto px-8 pb-20">
-                <div className="flex items-center justify-between mb-10 sticky top-0 bg-white/10 py-6 z-10">
-                  <h3 className="text-4xl font-serif italic">{format(selectedDate, 'EEEE, MMM do')}</h3>
-                  <button onClick={() => setIsModalOpen(true)} className="p-5 bg-stone-900 text-white rounded-[2rem] shadow-xl hover:scale-105 transition-transform"><Plus size={28} /></button>
+                <div className="flex items-center justify-between mb-10 py-6 sticky top-0 bg-white/10 z-10 backdrop-blur-sm">
+                  <h3 className="text-4xl font-serif italic text-stone-900">{format(selectedDate, 'EEEE, MMM do')}</h3>
+                  <button onClick={() => setIsModalOpen(true)} className="p-5 bg-stone-900 text-white rounded-[2rem] shadow-xl hover:scale-105 active:scale-95 transition-all"><Plus size={28} /></button>
                 </div>
                 
                 <div className="space-y-4">
                   {selectedDayPins.length > 0 ? selectedDayPins.map((pin) => (
-                    <div key={pin.id} className="flex items-center gap-6 p-6 bg-white rounded-[2.5rem] border-2 border-stone-50 shadow-sm group">
+                    <div key={pin.id} className="flex items-center gap-6 p-6 bg-white rounded-[2.5rem] border-2 border-stone-50 shadow-sm hover:shadow-md transition-all group overflow-hidden">
                       <div className="text-center min-w-[70px] border-r-2 border-stone-50 pr-6 font-black text-stone-900 uppercase text-sm">{pin.time}</div>
                       <div className="flex-1">
                         <h4 className="text-lg font-bold text-stone-900">{pin.title}</h4>
@@ -222,7 +244,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Modal (الذي طلبته تماماً) */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
@@ -244,7 +266,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* صندوق الملاحظات الجديد */}
+                {/* صندوق الملاحظات */}
                 <div className="bg-stone-50 p-4 rounded-2xl flex items-start gap-3">
                   <FileText size={18} className="text-stone-300 mt-1" />
                   <textarea 
@@ -266,7 +288,7 @@ export default function CalendarPage() {
                   {CATEGORIES.map(cat => (
                     <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn(
                       "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all",
-                      category === cat.id ? "bg-stone-900 border-stone-900 text-white" : "bg-white border-stone-50 text-stone-300"
+                      category === cat.id ? "bg-stone-900 border-stone-900 text-white shadow-md" : "bg-white border-stone-50 text-stone-300"
                     )}>
                       <cat.icon size={18} />
                       <span className="text-[8px] font-black uppercase tracking-tighter">{cat.label}</span>
