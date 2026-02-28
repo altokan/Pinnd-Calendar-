@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion'; // تأكد من وجود هذا السطر
+import { motion } from 'framer-motion'; 
 import { ChevronRight, X, Loader2 } from 'lucide-react';
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -31,7 +31,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
   adminOnly = false
 }) => {
   const { user, loading, isAdmin } = useAuth();
-  if (loading) return <div className="flex items-center justify-center min-h-screen bg-[#F9F8F6]"><Loader2 className="animate-spin" size={40} /></div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#F9F8F6]">
+      <Loader2 className="animate-spin text-stone-300" size={40} />
+    </div>
+  );
   if (!user) return <Navigate to="/login" />;
   if (adminOnly && !isAdmin) return <Navigate to="/" />;
   return <>{children}</>;
@@ -71,48 +75,59 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <Router>
+          <NotificationBanner />
           <Toaster position="top-center" />
-          
-          <AnimatePresence>
-            {showOnboarding && dynamicSlides.length > 0 && (
+
+          {/* Onboarding - Simple Logic for iPad Compatibility */}
+          {showOnboarding && dynamicSlides.length > 0 && (
+            <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans" dir="ltr">
+              <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors">
+                <X size={32}/>
+              </button>
+              
               <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-8 text-center font-sans"
-                dir="ltr"
+                key={onboardStep} 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full max-w-sm space-y-8"
               >
-                <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300"><X size={32}/></button>
-                <motion.div key={onboardStep} initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="max-w-md space-y-8">
-                  <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-xl border-4 border-white">
-                    <img src={dynamicSlides[onboardStep].img} className="w-full h-full object-cover" alt="onboarding" />
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-3xl font-black text-stone-900">{dynamicSlides[onboardStep].title}</h2>
-                    <p className="text-stone-400 text-lg leading-relaxed">{dynamicSlides[onboardStep].desc}</p>
-                  </div>
-                </motion.div>
-                <div className="absolute bottom-16 w-full max-w-md px-10 flex flex-col gap-6">
-                   <div className="flex justify-center gap-2">
-                      {dynamicSlides.map((_, i) => (
-                        <div key={i} className={`h-1.5 rounded-full transition-all ${i === onboardStep ? 'w-8 bg-stone-900' : 'w-2 bg-stone-100'}`} />
-                      ))}
-                   </div>
-                   <button 
-                    onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                    className="w-full py-5 bg-stone-900 text-white rounded-[2rem] font-bold text-xl flex items-center justify-center gap-2"
-                   >
-                    {onboardStep === dynamicSlides.length - 1 ? "Get Started" : "Next"} <ChevronRight size={24} />
-                   </button>
+                <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white mx-auto">
+                  <img src={dynamicSlides[onboardStep].img} alt="feature" className="w-full h-full object-cover" />
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-black text-stone-900 leading-tight">{dynamicSlides[onboardStep].title}</h2>
+                  <p className="text-stone-400 text-base leading-relaxed font-medium">{dynamicSlides[onboardStep].desc}</p>
                 </div>
               </motion.div>
-            )}
-          </AnimatePresence>
+
+              <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
+                <div className="flex gap-2">
+                  {dynamicSlides.map((_, i) => (
+                    <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-8 bg-stone-900' : 'w-2 bg-stone-100'}`} />
+                  ))}
+                </div>
+                <button 
+                  onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
+                  className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 font-black text-lg active:scale-95 transition-all"
+                >
+                  {onboardStep === dynamicSlides.length - 1 ? "Start Experience" : "Continue"}
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+            </div>
+          )}
 
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
+            <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
+            <Route path="/add-to-home" element={<ProtectedRoute><Layout><AddToHomeScreen /></Layout></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
+            <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
