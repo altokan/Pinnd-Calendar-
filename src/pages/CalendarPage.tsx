@@ -5,9 +5,7 @@ import {
 } from 'date-fns';
 import { 
   ChevronLeft, ChevronRight, Plus, Image as ImageIcon, 
-  X, Save, Loader2, MapPin, Clock, Bell, Trash2,
-  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star,
-  Calendar as CalendarIcon, ExternalLink, Edit3
+  X, Save, Loader2, MapPin, Clock, Trash2, Edit3, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
@@ -16,15 +14,6 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
-
-const CATEGORIES = [
-  { id: 'work', icon: Briefcase, label: 'Work', color: 'bg-blue-500' },
-  { id: 'doctor', icon: HeartPulse, label: 'Doctor', color: 'bg-red-500' },
-  { id: 'travel', icon: Plane, label: 'Travel', color: 'bg-amber-500' },
-  { id: 'party', icon: PartyPopper, label: 'Party', color: 'bg-purple-500' },
-  { id: 'gym', icon: Dumbbell, label: 'Gym', color: 'bg-emerald-500' },
-  { id: 'other', icon: Star, label: 'Other', color: 'bg-stone-500' },
-];
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -36,10 +25,10 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Form States
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('12:00');
   const [location, setLocation] = useState('');
-  const [category, setCategory] = useState('other');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -65,7 +54,6 @@ export default function CalendarPage() {
     setTitle(pin.title);
     setTime(pin.time);
     setLocation(pin.location);
-    setCategory(pin.category);
     setPreviewUrl(pin.imageUrl);
     setIsModalOpen(true);
   };
@@ -73,26 +61,28 @@ export default function CalendarPage() {
   const resetForm = () => {
     setEditingId(null);
     setTitle(''); setTime('12:00'); setLocation('');
-    setCategory('other'); setImageFile(null); setPreviewUrl(null);
+    setImageFile(null); setPreviewUrl(null);
     setIsModalOpen(false); setLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !title) return toast.error('Please enter a title');
+    if (!user || !title) return toast.error('Title is required');
 
     setLoading(true);
+    const toastId = toast.loading(editingId ? "Updating..." : "Saving...");
+
     try {
       let finalImageUrl = previewUrl || '';
 
       if (imageFile) {
-        const imageRef = ref(storage, `pins/${user.uid}/${Date.now()}_${imageFile.name}`);
-        const uploadResult = await uploadBytes(imageRef, imageFile);
-        finalImageUrl = await getDownloadURL(uploadResult.ref);
+        const fileRef = ref(storage, `pins/${user.uid}/${Date.now()}`);
+        const uploadTask = await uploadBytes(fileRef, imageFile);
+        finalImageUrl = await getDownloadURL(uploadTask.ref);
       }
 
       const pinData = {
-        title, time, location, category,
+        title, time, location,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: serverTimestamp(),
@@ -100,31 +90,29 @@ export default function CalendarPage() {
 
       if (editingId) {
         await updateDoc(doc(db, 'pins', editingId), pinData);
-        toast.success('Updated');
+        toast.success('Updated!', { id: toastId });
       } else {
-        await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
-        toast.success('Saved');
+        await addDoc(collection(db, 'pins'), { 
+          ...pinData, 
+          userId: user.uid, 
+          createdAt: serverTimestamp() 
+        });
+        toast.success('Pinned!', { id: toastId });
       }
       resetForm();
     } catch (error: any) {
-      toast.error('Error: ' + error.message);
+      toast.error(error.message, { id: toastId });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this event?")) return;
+    if (!confirm("Delete this event?")) return;
     try {
       await deleteDoc(doc(db, 'pins', id));
-      toast.success('Event Deleted');
-    } catch (error) {
-      toast.error('Delete failed');
-    }
-  };
-
-  const openInMaps = (loc: string) => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`, '_blank');
+      toast.success('Deleted');
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const calendarDays = eachDayOfInterval({
@@ -183,7 +171,7 @@ export default function CalendarPage() {
               <div className="max-w-3xl mx-auto">
                 <div className="flex justify-between items-center mb-10">
                   <h3 className="text-3xl font-serif italic">{format(selectedDate, 'EEEE, MMM do')}</h3>
-                  <button onClick={() => setIsModalOpen(true)} className="p-4 bg-stone-900 text-white rounded-2xl shadow-lg hover:scale-105 transition-transform"><Plus size={24}/></button>
+                  <button onClick={() => setIsModalOpen(true)} className="p-4 bg-stone-900 text-white rounded-2xl shadow-lg active:scale-95"><Plus size={24}/></button>
                 </div>
 
                 <div className="space-y-4">
@@ -193,9 +181,9 @@ export default function CalendarPage() {
                       <div className="flex-1">
                         <h4 className="font-bold text-lg">{pin.title}</h4>
                         {pin.location && (
-                          <button onClick={() => openInMaps(pin.location)} className="text-[11px] text-blue-500 font-bold flex items-center gap-1 mt-1">
-                            <MapPin size={12}/> {pin.location}
-                          </button>
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pin.location)}`} target="_blank" className="text-[11px] text-blue-500 font-bold flex items-center gap-1 mt-1">
+                            <MapPin size={12}/> {pin.location} <ExternalLink size={10}/>
+                          </a>
                         )}
                       </div>
                       {pin.imageUrl && <img src={pin.imageUrl} className="w-14 h-14 object-cover rounded-2xl border-2 border-white shadow-sm" />}
@@ -217,7 +205,7 @@ export default function CalendarPage() {
         {isModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-[3rem] w-full max-w-lg p-10 relative">
-              <button onClick={resetForm} className="absolute top-8 right-8 text-stone-400"><X size={24}/></button>
+              <button onClick={resetForm} className="absolute top-8 right-8 text-stone-400 hover:text-stone-900"><X size={24}/></button>
               <h3 className="text-2xl font-serif italic mb-8">{editingId ? 'Edit Event' : 'New Event'}</h3>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Event Title" className="w-full text-2xl font-serif border-none outline-none focus:ring-0 p-0" />
@@ -228,9 +216,9 @@ export default function CalendarPage() {
                 <label className="flex items-center justify-center gap-4 p-5 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200">
                   <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
                   {previewUrl ? <img src={previewUrl} className="w-10 h-10 object-cover rounded-lg" /> : <ImageIcon className="text-stone-300"/>}
-                  <span className="text-xs font-bold text-stone-500 uppercase">Attach Photo</span>
+                  <span className="text-xs font-bold text-stone-500 uppercase">Photo</span>
                 </label>
-                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-3">
+                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-2xl font-black shadow-xl flex items-center justify-center gap-3 active:scale-95">
                   {loading ? <Loader2 className="animate-spin"/> : <><Save size={20}/> Confirm</>}
                 </button>
               </form>
