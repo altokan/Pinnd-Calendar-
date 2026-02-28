@@ -56,7 +56,7 @@ export default function App() {
   useEffect(() => {
     listenForegroundNotifications();
 
-    // ✅ جلب إعدادات Onboarding من الوثيقة الصحيحة التي انشأناها في الـ Admin
+    // ✅ Fetch Onboarding configuration from Firestore
     const unsubConfig = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
       if (snap.exists()) {
         const configData = snap.data();
@@ -74,7 +74,7 @@ export default function App() {
       setIsConfigLoading(false);
     });
 
-    // التنبيهات اللحظية للأدمن
+    // Real-time notifications for Admin
     const qNotify = query(
       collection(db, "admin_notifications"),
       orderBy("createdAt", "desc"),
@@ -115,43 +115,67 @@ export default function App() {
           <AnimatePresence>
             {showOnboarding && dynamicSlides.length > 0 && (
               <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-8 text-center"
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans"
+                dir="ltr"
               >
-                <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900">
+                {/* Skip / Close Button */}
+                <button 
+                  onClick={handleCompleteOnboarding} 
+                  className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors"
+                >
                   <X size={32}/>
                 </button>
                 
                 <motion.div 
                   key={onboardStep}
-                  initial={{ x: 50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -50, opacity: 0 }}
-                  className="max-w-md space-y-10"
+                  initial={{ x: 50, opacity: 0 }} 
+                  animate={{ x: 0, opacity: 1 }} 
+                  exit={{ x: -50, opacity: 0 }}
+                  className="w-full max-w-sm space-y-10"
                 >
-                  <div className="w-full h-80 bg-stone-50 rounded-[4rem] overflow-hidden shadow-2xl flex items-center justify-center border-8 border-white">
+                  {/* Image Container - Mobile Optimized */}
+                  <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl flex items-center justify-center border-4 border-white mx-auto">
                     <img 
                        src={dynamicSlides[onboardStep].img} 
-                       alt="Feature" 
+                       alt="Feature Illustration" 
                        className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="space-y-4 px-4 text-right" dir="rtl">
-                    <h2 className="text-4xl font-black text-stone-900">{dynamicSlides[onboardStep].title}</h2>
-                    <p className="text-stone-400 text-lg leading-relaxed">{dynamicSlides[onboardStep].desc}</p>
+
+                  {/* Text Content */}
+                  <div className="space-y-4 px-2 text-center">
+                    <h2 className="text-3xl font-black text-stone-900 leading-tight">
+                      {dynamicSlides[onboardStep].title}
+                    </h2>
+                    <p className="text-stone-400 text-base font-medium leading-relaxed">
+                      {dynamicSlides[onboardStep].desc}
+                    </p>
                   </div>
                 </motion.div>
 
-                <div className="absolute bottom-16 w-full max-w-md px-10 flex items-center justify-between">
-                  <button 
-                    onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                    className="bg-stone-900 text-white p-6 rounded-[2rem] shadow-2xl hover:scale-110 active:scale-95 transition-all"
-                  >
-                    <ChevronRight size={32} />
-                  </button>
-                  <div className="flex gap-3">
+                {/* Footer Navigation */}
+                <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
+                  {/* Progress Indicators (Dots) */}
+                  <div className="flex gap-2">
                     {dynamicSlides.map((_, i) => (
-                      <div key={i} className={`h-2 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-10 bg-stone-900' : 'w-2 bg-stone-100'}`} />
+                      <div 
+                        key={i} 
+                        className={`h-1.5 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-8 bg-stone-900' : 'w-2 bg-stone-100'}`} 
+                      />
                     ))}
                   </div>
+
+                  {/* Action Button */}
+                  <button 
+                    onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
+                    className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 font-black text-lg"
+                  >
+                    <span>{onboardStep === dynamicSlides.length - 1 ? "Get Started" : "Continue"}</span>
+                    <ChevronRight size={24} />
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -161,6 +185,8 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            
+            {/* Protected Routes wrapped in Layout */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
             <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
@@ -168,6 +194,8 @@ export default function App() {
             <Route path="/add-to-home" element={<ProtectedRoute><Layout><AddToHomeScreen /></Layout></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
             <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
+            
+            {/* Catch-all Redirect */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
