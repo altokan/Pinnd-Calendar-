@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+// إضافة useSearchParams للتعامل مع الروابط
+import { useSearchParams } from 'react-router-dom';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
-  isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek 
+  isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek, parseISO 
 } from 'date-fns';
 import { 
   ChevronLeft, ChevronRight, Plus, Camera, 
@@ -34,6 +36,7 @@ const REMINDER_OPTIONS = [
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams(); // استخدام متغيرات الرابط
   const [currentDate, setCurrentDate] = useState(new Date());
   const [pins, setPins] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,8 +51,8 @@ export default function CalendarPage() {
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('12:00');
   const [location, setLocation] = useState('');
-  const [lat, setLat] = useState<number | null>(null); // إضافة خط العرض
-  const [lng, setLng] = useState<number | null>(null); // إضافة خط الطول
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('other');
   const [reminder, setReminder] = useState('none');
@@ -70,6 +73,31 @@ export default function CalendarPage() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  // --- التحديث: منطق الربط مع الخريطة ---
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    const openEventId = searchParams.get('openEvent');
+
+    if (dateParam && pins.length > 0) {
+      try {
+        const parsedDate = parseISO(dateParam);
+        setSelectedDate(parsedDate);
+        setCurrentDate(parsedDate); // لتغيير عرض شهر التقويم أيضاً
+        setIsTimelineOpen(true);
+
+        if (openEventId) {
+          const pinToOpen = pins.find(p => p.id === openEventId);
+          if (pinToOpen) {
+            setSelectedPin(pinToOpen);
+            setIsPreviewOpen(true);
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing date from URL", e);
+      }
+    }
+  }, [searchParams, pins]); 
 
   const handleLocationChange = async (val: string) => {
     setLocation(val);
@@ -105,13 +133,11 @@ export default function CalendarPage() {
     setPreviewUrl(null); setIsModalOpen(false); setLoading(false); setShowReminderMenu(false);
   };
 
-  // دالة الحذف الفورية
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this event?")) return;
     const previousPins = [...pins];
     setPins(pins.filter(p => p.id !== id));
     setIsPreviewOpen(false);
-
     try {
       await deleteDoc(doc(db, 'pins', id));
       toast.success('Deleted');
@@ -121,13 +147,11 @@ export default function CalendarPage() {
     }
   };
 
-  // دالة الإضافة الفورية (Optimistic Update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title) return toast.error('Title is required');
     setLoading(true);
     const toastId = toast.loading("Saving...");
-
     try {
       let finalImageUrl = previewUrl || '';
       if (imageFile) {
@@ -135,31 +159,24 @@ export default function CalendarPage() {
         await uploadBytes(imageRef, imageFile);
         finalImageUrl = await getDownloadURL(imageRef);
       }
-
       const pinData = {
         title, time, location, lat, lng, notes, category, reminder,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: new Date(),
       };
-
-      // الحل الفوري للإضافة أو التعديل في الواجهة قبل السيرفر
       const tempId = editingId || Date.now().toString();
       const newPin = { id: tempId, ...pinData, userId: user.uid };
-      
       if (!editingId) {
         setPins(prev => [newPin, ...prev]);
       } else {
         setPins(prev => prev.map(p => p.id === editingId ? { ...p, ...pinData } : p));
       }
-
-      // المزامنة مع Firebase في الخلفية
       if (editingId) {
         await updateDoc(doc(db, 'pins', editingId), { ...pinData, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
       }
-
       toast.success('Success!', { id: toastId });
       resetForm();
     } catch (error: any) {
@@ -372,8 +389,8 @@ export default function CalendarPage() {
                         {suggestions.map((s, i) => (
                           <button key={i} type="button" onClick={() => { 
                             setLocation(s.display_name); 
-                            setLat(parseFloat(s.lat)); // حفظ خط العرض عند اختيار المقترح
-                            setLng(parseFloat(s.lon)); // حفظ خط الطول عند اختيار المقترح
+                            setLat(parseFloat(s.lat)); 
+                            setLng(parseFloat(s.lon)); 
                             setSuggestions([]); 
                             setShowSuggestions(false); 
                           }} className="w-full text-left p-3 text-[10px] font-bold text-stone-500 hover:bg-stone-50 border-b border-stone-50">{s.display_name}</button>
