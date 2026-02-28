@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion'; 
 import { ChevronRight, X, Loader2 } from 'lucide-react';
+
+// استيراد motion فقط وتجنب AnimatePresence تماماً لحل مشكلة الـ ReferenceError
+import { motion } from 'framer-motion'; 
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './ThemeContext';
@@ -78,19 +80,14 @@ export default function App() {
           <NotificationBanner />
           <Toaster position="top-center" />
 
-          {/* Onboarding - Simple Logic for iPad Compatibility */}
+          {/* Onboarding - نسخة مبسطة لضمان التوافق مع الآيباد */}
           {showOnboarding && dynamicSlides.length > 0 && (
             <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans" dir="ltr">
-              <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors">
+              <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300">
                 <X size={32}/>
               </button>
               
-              <motion.div 
-                key={onboardStep} 
-                initial={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-sm space-y-8"
-              >
+              <div className="w-full max-w-sm space-y-8">
                 <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white mx-auto">
                   <img src={dynamicSlides[onboardStep].img} alt="feature" className="w-full h-full object-cover" />
                 </div>
@@ -98,7 +95,7 @@ export default function App() {
                   <h2 className="text-3xl font-black text-stone-900 leading-tight">{dynamicSlides[onboardStep].title}</h2>
                   <p className="text-stone-400 text-base leading-relaxed font-medium">{dynamicSlides[onboardStep].desc}</p>
                 </div>
-              </motion.div>
+              </div>
 
               <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
                 <div className="flex gap-2">
@@ -108,9 +105,9 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                  className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 font-black text-lg active:scale-95 transition-all"
+                  className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 font-black text-lg"
                 >
-                  {onboardStep === dynamicSlides.length - 1 ? "Start Experience" : "Continue"}
+                  {onboardStep === dynamicSlides.length - 1 ? "Start" : "Next"}
                   <ChevronRight size={24} />
                 </button>
               </div>
@@ -123,11 +120,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
-            <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
-            <Route path="/add-to-home" element={<ProtectedRoute><Layout><AddToHomeScreen /></Layout></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
-            <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
