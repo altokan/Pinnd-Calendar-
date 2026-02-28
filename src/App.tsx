@@ -20,6 +20,7 @@ import AdminPage from './pages/AdminPage';
 import AddToHomeScreen from './pages/AddToHomeScreen';
 import ContactPage from './pages/ContactPage';
 import NotificationsPage from './pages/NotificationsPage';
+import SketchPage from './pages/SketchPage'; // ✅ استيراد صفحة السكتش
 
 /* Firebase Services */
 import { listenForegroundNotifications } from "./services/firebase-messaging";
@@ -178,8 +179,18 @@ export default function App() {
             <Route path="/add-to-home" element={<ProtectedRoute><Layout><AddToHomeScreen /></Layout></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
             
-            {/* القادمة في الخطوات التالية */}
-            <Route path="/sketch" element={<ProtectedRoute><Layout><div className="min-h-[60vh] flex items-center justify-center font-serif italic text-2xl text-stone-300">Sketch Canvas (Coming Next)</div></Layout></ProtectedRoute>} />
+            {/* ✅ تم تحديث مسار السكتش */}
+            <Route 
+              path="/sketch" 
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SketchPage />
+                  </Layout>
+                </ProtectedRoute>
+              } 
+            />
+
             <Route path="/map" element={<ProtectedRoute><Layout><div className="min-h-[60vh] flex items-center justify-center font-serif italic text-2xl text-stone-300">Map Exploration (In Progress)</div></Layout></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
