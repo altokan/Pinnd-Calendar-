@@ -19,13 +19,31 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// مكون التحكم في الزوم التلقائي (AutoZoom)
+// --- التحديث: مكون التحكم في الزوم الذكي المتطور ---
 const MapAutoZoom = ({ events }: { events: any[] }) => {
   const map = useMap();
+  
   useEffect(() => {
     if (events.length > 0) {
+      // 1. حساب متوسط الإحداثيات (المركز الجغرافي للدبابيس)
+      const avgLat = events.reduce((sum, e) => sum + e.lat, 0) / events.length;
+      const avgLng = events.reduce((sum, e) => sum + e.lng, 0) / events.length;
+
+      // 2. تحديد الحدود الجغرافية لتشمل جميع الدبابيس
       const bounds = L.latLngBounds(events.map(e => [e.lat, e.lng]));
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+
+      // 3. حركة انسيابية للمركز (Focus on Density)
+      map.flyTo([avgLat, avgLng], map.getZoom() > 10 ? map.getZoom() : 10, {
+        animate: true,
+        duration: 2
+      });
+
+      // 4. ضبط الزوم النهائي ليشمل الجميع بعد انتهاء الحركة
+      const timer = setTimeout(() => {
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+      }, 2100);
+
+      return () => clearTimeout(timer);
     }
   }, [events, map]);
   return null;
@@ -37,23 +55,46 @@ const MapsPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // جلب البيانات حية من Firestore
-    const q = query(collection(db, "events"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      })) as any[];
-      
-      // التأكد من وجود إحداثيات صالحة قبل العرض
-      const validEvents = data.filter(e => 
-        typeof e.lat === 'number' && typeof e.lng === 'number'
-      );
-      
-      setEvents(validEvents);
-      setLoading(false);
+    // جلب البيانات من مجموعتي "events" و "pins" (التقويم) لضمان الربط
+    const qEvents = query(collection(db, "events"));
+    const qPins = query(collection(db, "pins"));
+
+    // دالة لمعالجة البيانات المدمجة
+    const processData = (snapshot: any, source: string) => {
+        return snapshot.docs.map((doc: any) => ({
+            id: doc.id,
+            ...doc.data(),
+            source // لتمييز مصدر الدبوس إذا أردت
+        }));
+    };
+
+    const unsubEvents = onSnapshot(qEvents, (snap) => {
+        const eventsData = processData(snap, 'event');
+        updateState(eventsData, 'events');
     });
-    return () => unsub();
+
+    const unsubPins = onSnapshot(qPins, (snap) => {
+        const pinsData = processData(snap, 'pin');
+        updateState(pinsData, 'pins');
+    });
+
+    // دالة لتحديث الحالة ودمج البيانات من المصدرين
+    let allData: any[] = [];
+    const updateState = (newData: any[], type: string) => {
+        if (type === 'events') {
+            allData = [...newData, ...allData.filter(d => d.source === 'pin')];
+        } else {
+            allData = [...newData, ...allData.filter(d => d.source === 'event')];
+        }
+        
+        const validEvents = allData.filter(e => 
+            typeof e.lat === 'number' && typeof e.lng === 'number'
+        );
+        setEvents(validEvents);
+        setLoading(false);
+    };
+
+    return () => { unsubEvents(); unsubPins(); };
   }, []);
 
   return (
@@ -86,35 +127,32 @@ const MapsPage: React.FC = () => {
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
           >
-            {/* شكل الخريطة (خفيف وأنيق ليتناسب مع التصميم) */}
+            {/* شكل الخريطة */}
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; OpenStreetMap'
             />
             
-            {/* تفعيل الزوم التلقائي */}
+            {/* تفعيل الزوم التلقائي الذكي */}
             <MapAutoZoom events={events} />
 
             {events.map((event) => (
               <Marker 
                 key={event.id} 
                 position={[event.lat, event.lng]}
-                eventHandlers={{
-                  click: () => {
-                    // يمكنك تفعيل الانتقال عند النقر على الدبوس
-                    // navigate(`/event/${event.id}`);
-                  },
-                }}
               >
                 <Popup className="custom-popup">
                   <div className="p-1">
-                    <h3 className="font-black text-stone-900 m-0">{event.title}</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${event.source === 'pin' ? 'bg-blue-500' : 'bg-rose-500'}`} />
+                        <h3 className="font-black text-stone-900 m-0">{event.title}</h3>
+                    </div>
                     <p className="text-[10px] text-stone-400 font-bold m-0 uppercase tracking-tighter">{event.date}</p>
                     <button 
-                      onClick={() => navigate(`/event/${event.id}`)}
-                      className="mt-2 text-[10px] font-black text-rose-500 uppercase underline"
+                      onClick={() => navigate(event.source === 'pin' ? '/' : `/event/${event.id}`)}
+                      className="mt-2 text-[10px] font-black text-stone-900 uppercase underline"
                     >
-                      View Details
+                      {event.source === 'pin' ? 'View in Calendar' : 'View Details'}
                     </button>
                   </div>
                 </Popup>
@@ -130,7 +168,7 @@ const MapsPage: React.FC = () => {
           </div>
           <div>
             <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Database</p>
-            <p className="text-lg font-black text-white leading-none">{events.length} Pins Found</p>
+            <p className="text-lg font-black text-white leading-none">{events.length} Active Pins</p>
           </div>
         </div>
       </div>
