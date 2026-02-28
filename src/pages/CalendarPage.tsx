@@ -48,6 +48,8 @@ export default function CalendarPage() {
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('12:00');
   const [location, setLocation] = useState('');
+  const [lat, setLat] = useState<number | null>(null); // إضافة خط العرض
+  const [lng, setLng] = useState<number | null>(null); // إضافة خط الطول
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('other');
   const [reminder, setReminder] = useState('none');
@@ -86,6 +88,8 @@ export default function CalendarPage() {
     setTitle(pin.title);
     setTime(pin.time);
     setLocation(pin.location || '');
+    setLat(pin.lat || null);
+    setLng(pin.lng || null);
     setNotes(pin.notes || '');
     setCategory(pin.category || 'other');
     setReminder(pin.reminder || 'none');
@@ -96,6 +100,7 @@ export default function CalendarPage() {
 
   const resetForm = () => {
     setEditingId(null); setTitle(''); setTime('12:00'); setLocation('');
+    setLat(null); setLng(null);
     setNotes(''); setCategory('other'); setReminder('none'); setImageFile(null); 
     setPreviewUrl(null); setIsModalOpen(false); setLoading(false); setShowReminderMenu(false);
   };
@@ -132,7 +137,7 @@ export default function CalendarPage() {
       }
 
       const pinData = {
-        title, time, location, notes, category, reminder,
+        title, time, location, lat, lng, notes, category, reminder,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: new Date(),
@@ -365,7 +370,13 @@ export default function CalendarPage() {
                     {showSuggestions && suggestions.length > 0 && (
                       <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-stone-100 max-h-40 overflow-auto">
                         {suggestions.map((s, i) => (
-                          <button key={i} type="button" onClick={() => { setLocation(s.display_name); setSuggestions([]); setShowSuggestions(false); }} className="w-full text-left p-3 text-[10px] font-bold text-stone-500 hover:bg-stone-50 border-b border-stone-50">{s.display_name}</button>
+                          <button key={i} type="button" onClick={() => { 
+                            setLocation(s.display_name); 
+                            setLat(parseFloat(s.lat)); // حفظ خط العرض عند اختيار المقترح
+                            setLng(parseFloat(s.lon)); // حفظ خط الطول عند اختيار المقترح
+                            setSuggestions([]); 
+                            setShowSuggestions(false); 
+                          }} className="w-full text-left p-3 text-[10px] font-bold text-stone-500 hover:bg-stone-50 border-b border-stone-50">{s.display_name}</button>
                         ))}
                       </div>
                     )}
