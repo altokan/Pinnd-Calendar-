@@ -5,19 +5,18 @@ import { useTheme } from '../ThemeContext';
 import { auth, isFirebaseConfigured } from '../services/firebase';
 import { 
   ChevronLeft, 
-  LogOut, 
-  User, 
   Shield, 
-  Home, 
   PlusCircle, 
-  Smartphone, 
   AlertTriangle,
-  Moon,
-  Sun,
   Palette,
-  MessageSquare
+  MessageSquare,
+  Calendar,
+  Map,
+  PenTool,
+  Bell,
+  User
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion'; // تأكد من أنها framer-motion وليس motion/react لضمان التوافق
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import EventModal from './EventModal';
@@ -54,41 +53,49 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Amber', primary: '#78350f', secondary: '#f59e0b' },
   ];
 
+  // تعريف عناصر التنقل للشريط السفلي
+  const navItems = [
+    { icon: <Calendar size={24} />, label: 'Calendar', path: '/' },
+    { icon: <Map size={24} />, label: 'Explore', path: '/map' },
+    { icon: <PenTool size={24} />, label: 'Sketch', path: '/sketch' },
+    { icon: <Bell size={24} />, label: 'Alerts', path: '/notifications' },
+    { icon: <User size={24} />, label: 'Profile', path: '/profile' },
+  ];
+
   return (
-    <div className="min-h-screen font-sans flex flex-col transition-colors duration-300 bg-stone-50 text-stone-900">
+    <div className="min-h-screen font-sans flex flex-col transition-colors duration-300 bg-[#F9F8F6] text-stone-900">
       {!isFirebaseConfigured && (
         <div className="bg-amber-500 text-white px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 z-[60]">
           <AlertTriangle size={12} />
-          Firebase Configuration Missing - Please check Secrets panel
+          Firebase Configuration Missing
         </div>
       )}
+
       {/* Header */}
       <header className={cn(
-        "sticky top-0 z-40 border-b px-4 py-3 transition-all",
-        theme.glassmorphism ? "glass" : "bg-white border-stone-200"
+        "sticky top-0 z-40 border-b px-6 py-4 transition-all",
+        theme.glassmorphism ? "glass backdrop-blur-md bg-white/70" : "bg-white border-stone-100"
       )}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             {showBackButton && (
               <button 
                 onClick={() => navigate(-1)}
-                className="p-2 hover:bg-stone-100 rounded-full transition-colors"
-                id="back-button"
+                className="p-2 hover:bg-stone-100 rounded-xl transition-all"
               >
                 <ChevronLeft size={20} />
               </button>
             )}
-            <Link to="/" className="text-xl font-bold tracking-tight text-stone-800">
-              Pinned Calendar
+            <Link to="/" className="text-xl font-serif italic font-bold tracking-tight text-stone-800">
+              Pinned
             </Link>
           </div>
 
-          <div className="flex items-center gap-1 md:gap-2">
+          <div className="flex items-center gap-2">
             <div className="relative">
               <button 
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
-                className="p-2 hover:bg-stone-100 rounded-full transition-colors"
-                title="Theme Settings"
+                className="p-2.5 hover:bg-stone-100 rounded-xl transition-all text-stone-500"
               >
                 <Palette size={20} />
               </button>
@@ -99,10 +106,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-48 bg-white border border-stone-200 rounded-2xl shadow-xl p-3 z-50"
+                    className="absolute right-0 mt-3 w-56 bg-white border border-stone-100 rounded-[2rem] shadow-2xl p-4 z-50"
                   >
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3 px-2">Choose Color</p>
-                    <div className="grid grid-cols-5 gap-2 mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4 px-2">Theme Palette</p>
+                    <div className="grid grid-cols-5 gap-3 mb-5 px-2">
                       {colors.map((c) => (
                         <button
                           key={c.name}
@@ -110,9 +117,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             updateTheme({ primaryColor: c.primary, secondaryColor: c.secondary });
                             setShowThemeMenu(false);
                           }}
-                          className="w-6 h-6 rounded-full border-2 border-white shadow-sm transition-transform hover:scale-110"
+                          className="w-7 h-7 rounded-full border-2 border-white shadow-sm transition-transform hover:scale-125"
                           style={{ backgroundColor: c.primary }}
-                          title={c.name}
                         />
                       ))}
                     </div>
@@ -121,16 +127,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         updateTheme({ glassmorphism: !theme.glassmorphism });
                         setShowThemeMenu(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-stone-50 rounded-lg transition-colors flex items-center justify-between"
+                      className="w-full text-left px-4 py-3 text-xs font-bold hover:bg-stone-50 rounded-2xl transition-all flex items-center justify-between border border-stone-50"
                     >
-                      Glassmorphism
+                      Glass Mode
                       <div className={cn(
-                        "w-8 h-4 rounded-full transition-colors relative",
+                        "w-10 h-5 rounded-full transition-all relative",
                         theme.glassmorphism ? "bg-stone-900" : "bg-stone-200"
                       )}>
                         <div className={cn(
-                          "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all",
-                          theme.glassmorphism ? "left-4.5" : "left-0.5"
+                          "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                          theme.glassmorphism ? "left-6" : "left-1"
                         )} />
                       </div>
                     </button>
@@ -139,21 +145,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </AnimatePresence>
             </div>
 
-            <Link to="/contact" className="p-2 hover:bg-stone-100 rounded-full transition-colors" title="Contact Us">
+            <Link to="/contact" className="p-2.5 hover:bg-stone-100 rounded-xl transition-all text-stone-500">
               <MessageSquare size={20} />
             </Link>
 
             {isAdmin && (
-              <Link to="/admin" className="p-2 hover:bg-stone-100 rounded-full transition-colors" title="Admin Panel">
+              <Link to="/admin" className="p-2.5 hover:bg-stone-100 rounded-xl transition-all text-rose-500">
                 <Shield size={20} />
               </Link>
             )}
-            <Link to="/profile" className="p-2 hover:bg-stone-100 rounded-full transition-colors" title="Profile">
-              <User size={20} />
-            </Link>
-            <Link to="/add-to-home" className="hidden md:block p-2 hover:bg-stone-100 rounded-full transition-colors" title="Install App">
-              <Smartphone size={20} />
-            </Link>
           </div>
         </div>
       </header>
@@ -163,58 +163,75 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-7xl mx-auto w-full px-4 pt-6 pb-2"
+          className="max-w-7xl mx-auto w-full px-6 pt-10 pb-4"
         >
-          <h1 className="text-2xl font-serif italic text-stone-800">
+          <h1 className="text-4xl font-serif italic text-stone-800 tracking-tight">
             {getGreeting()}
           </h1>
-          <p className="text-stone-500 text-sm mt-1">
-            {format(new Date(), 'EEEE, MMMM do')}
+          <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em] mt-3">
+            {format(new Date(), 'EEEE, MMMM do, yyyy')}
           </p>
         </motion.div>
       )}
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6 pb-40">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
           >
             {children}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-stone-200 py-6 px-4 text-center mt-auto mb-20 md:mb-0">
-        <p className="text-stone-400 text-[10px] font-bold uppercase tracking-[0.3em]">
-          Designed & Developed by Amjad Altokan
-        </p>
-      </footer>
-
-      {/* Fixed Bottom Navigation (Mobile) */}
-      <nav className={cn(
-        "md:hidden fixed bottom-0 left-0 right-0 border-t px-6 py-3 flex justify-around items-center z-50 transition-all",
-        theme.glassmorphism ? "glass" : "bg-white border-stone-200"
-      )}>
-        <Link to="/" className={cn("p-2 rounded-full", location.pathname === '/' ? "text-stone-900 bg-stone-100" : "text-stone-400")}>
-          <Home size={24} />
-        </Link>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="p-3 bg-stone-900 text-white rounded-full shadow-lg -mt-10 border-4 border-stone-50 active:scale-95 transition-transform"
-          style={{ backgroundColor: theme.primaryColor }}
-        >
-          <PlusCircle size={28} />
-        </button>
-        <Link to="/profile" className={cn("p-2 rounded-full", location.pathname === '/profile' ? "text-stone-900 bg-stone-100" : "text-stone-400")}>
-          <User size={24} />
-        </Link>
-      </nav>
+      {/* Bottom Navigation (Floating Premium Style) */}
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-50">
+        <nav className={cn(
+          "h-22 rounded-[3rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] flex items-center justify-around px-4 border border-white/40 transition-all",
+          theme.glassmorphism ? "bg-white/60 backdrop-blur-3xl" : "bg-white border-stone-100"
+        )}>
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className="flex flex-col items-center gap-1 group relative py-2"
+              >
+                <div className={cn(
+                  "p-3.5 rounded-[1.6rem] transition-all duration-300",
+                  isActive 
+                    ? "bg-stone-900 text-white shadow-xl -translate-y-3 scale-110" 
+                    : "text-stone-400 hover:text-stone-600 hover:bg-stone-50"
+                )}
+                style={isActive ? { backgroundColor: theme.primaryColor } : {}}
+                >
+                  {item.icon}
+                </div>
+                {isActive && (
+                  <span className="text-[8px] font-black uppercase tracking-[0.15em] absolute -bottom-3 animate-in fade-in slide-in-from-bottom-1">
+                    {item.label}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+          
+          {/* زر الإضافة العائم مدمج في المنتصف أو بجانب العناصر */}
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="p-4 bg-stone-900 text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all border-4 border-white"
+            style={{ backgroundColor: theme.primaryColor }}
+          >
+            <PlusCircle size={26} />
+          </button>
+        </nav>
+      </div>
 
       <EventModal 
         isOpen={isModalOpen} 
