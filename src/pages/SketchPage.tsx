@@ -65,12 +65,7 @@ export default function SketchPage() {
   };
 
   const startDrawing = (e: any) => {
-    if (tool !== 'pencil' && tool !== 'eraser') {
-      if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
-        setSelectedId(null);
-      }
-      return;
-    }
+    if (tool !== 'pencil' && tool !== 'eraser') return;
     const { offsetX, offsetY } = getCoordinates(e.nativeEvent || e);
     contextRef.current?.beginPath();
     contextRef.current?.moveTo(offsetX, offsetY);
@@ -88,49 +83,27 @@ export default function SketchPage() {
     }
   };
 
-  // دوال الحذف الصريحة
-  const deleteSelected = () => {
-    if (!selectedId) return;
-    setImages(prev => prev.filter(img => img.id !== selectedId));
-    setTexts(prev => prev.filter(txt => txt.id !== selectedId));
-    setSelectedId(null);
-    toast.success("Deleted");
-  };
-
   return (
-    <div className="fixed inset-0 bg-stone-200 flex flex-col overflow-hidden touch-none font-sans">
-      {/* Top Header */}
+    <div className="fixed inset-0 bg-stone-200 flex flex-col overflow-hidden touch-none">
+      {/* Header */}
       <div className="z-[100] p-4 flex items-center justify-between bg-white border-b shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-full active:bg-stone-100"><ChevronLeft size={24} /></button>
-          <h1 className="text-lg font-black italic uppercase">Studio Pro</h1>
+          <button onClick={() => navigate(-1)} className="p-2 rounded-full active:bg-stone-100 transition-colors"><ChevronLeft size={24} /></button>
+          <h1 className="text-xl font-black italic tracking-tighter text-stone-900 uppercase">Studio Pro</h1>
         </div>
-
-        {/* شريط أدوات التحكم بالعنصر المحدد - يظهر فقط عند تحديد شيء */}
-        {selectedId && (
-          <div className="flex items-center gap-2 bg-stone-900 p-1.5 rounded-2xl animate-in fade-in zoom-in">
-            <button onClick={() => {
-              setTexts(texts.map(t => t.id === selectedId ? {...t, fontSize: t.fontSize + 4} : t));
-            }} className="p-2 text-white"><Plus size={18}/></button>
-            <button onClick={() => {
-              setTexts(texts.map(t => t.id === selectedId ? {...t, fontSize: Math.max(12, t.fontSize - 4)} : t));
-            }} className="p-2 text-white border-r border-white/20"><Minus size={18}/></button>
-            <button onClick={deleteSelected} className="p-2 text-red-400 px-4 flex items-center gap-2 font-bold text-xs uppercase">
-              <Trash2 size={18}/> Delete
-            </button>
-          </div>
-        )}
-
-        <button onClick={() => toast.success("Saving...")} className="px-6 py-2 bg-stone-900 text-white rounded-full font-black text-[10px] uppercase">Save</button>
+        <button onClick={() => toast.success("Saving...")} className="px-8 py-3 bg-stone-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest active:scale-95 transition-transform">
+          Save Project
+        </button>
       </div>
 
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden bg-stone-100">
         <motion.div 
           className="relative origin-center" 
           style={{ x, y, scale }}
           drag={tool === 'hand'}
           dragConstraints={{ left: -2000, right: 2000, top: -2000, bottom: 2000 }}
         >
+          {/* Canvas الرسم */}
           <canvas
             ref={canvasRef}
             onPointerDown={startDrawing}
@@ -139,91 +112,110 @@ export default function SketchPage() {
             className={cn("shadow-2xl bg-white", tool === 'pencil' ? "cursor-crosshair" : "cursor-default")}
           />
 
-          {/* طبقة العناصر */}
+          {/* طبقة العناصر التفاعلية */}
           <div className="absolute inset-0 pointer-events-none">
+            {/* عرض الصور */}
             {images.map((img) => (
               <Rnd
                 key={img.id}
                 size={{ width: img.width, height: img.height }}
                 position={{ x: img.x, y: img.y }}
-                onDragStart={() => { setSelectedId(img.id); setTool('select'); }}
                 onDragStop={(_, d) => setImages(images.map(i => i.id === img.id ? {...i, x: d.x, y: d.y} : i))}
                 onResizeStop={(_, dir, ref, delta, pos) => {
                   setImages(images.map(i => i.id === img.id ? { ...i, width: parseInt(ref.style.width), height: parseInt(ref.style.height), ...pos } : i));
                 }}
                 enableResizing={tool === 'select'}
                 disableDragging={tool !== 'select'}
+                cancel=".no-drag" // منع السحب عند الضغط على أزرار الحذف
                 style={{ pointerEvents: 'auto', zIndex: selectedId === img.id ? 50 : 10 }}
               >
                 <div 
-                  onPointerDown={() => setSelectedId(img.id)}
-                  className={cn("w-full h-full p-1 transition-all", selectedId === img.id ? "ring-4 ring-blue-500 rounded-sm" : "")}
+                  onClick={() => setSelectedId(img.id)}
+                  className={cn("relative w-full h-full p-2 group transition-all", selectedId === img.id ? "ring-2 ring-blue-500 bg-blue-50/10 rounded-lg" : "")}
                 >
                   <img src={img.url} className="w-full h-full object-contain pointer-events-none" />
+                  
+                  {selectedId === img.id && tool === 'select' && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setImages(images.filter(i => i.id !== img.id)); setSelectedId(null); }}
+                      className="no-drag absolute -top-4 -right-4 bg-red-500 text-white rounded-full p-2 shadow-xl active:scale-125 transition-transform z-[100]"
+                    >
+                      <Trash2 size={18}/>
+                    </button>
+                  )}
                 </div>
               </Rnd>
             ))}
 
+            {/* عرض النصوص */}
             {texts.map((t) => (
               <Rnd
                 key={t.id}
                 position={{ x: t.x, y: t.y }}
-                onDragStart={() => { setSelectedId(t.id); setTool('select'); }}
                 onDragStop={(_, d) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, x: d.x, y: d.y} : txt))}
-                disableDragging={tool !== 'select'}
                 enableResizing={false}
+                disableDragging={tool !== 'select'}
+                cancel=".no-drag" // منع السحب عند الضغط داخل النص أو الأزرار
                 style={{ pointerEvents: 'auto', zIndex: selectedId === t.id ? 50 : 20 }}
               >
                 <div 
-                  onPointerDown={() => setSelectedId(t.id)}
-                  className={cn("p-4 min-w-[150px]", selectedId === t.id ? "bg-white/90 ring-2 ring-blue-400 rounded-xl" : "")}
+                  onClick={() => setSelectedId(t.id)}
+                  className={cn("relative p-4 min-w-[150px] transition-all", selectedId === t.id ? "bg-white/90 ring-2 ring-blue-500 rounded-xl shadow-2xl scale-105" : "bg-transparent")}
                 >
                   <textarea
                     defaultValue={t.text}
-                    onFocus={() => { setSelectedId(t.id); setTool('select'); }}
-                    className="bg-transparent border-none font-black italic text-stone-900 outline-none resize-none text-center w-full"
+                    className="no-drag bg-transparent border-none font-black italic text-stone-900 outline-none resize-none text-center w-full"
                     style={{ fontSize: `${t.fontSize}px`, minHeight: '50px' }}
                     onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, text: e.target.value} : txt))}
                   />
+                  
+                  {selectedId === t.id && tool === 'select' && (
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex gap-1 bg-stone-900 p-1.5 rounded-xl shadow-2xl no-drag z-[100]">
+                      <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: txt.fontSize + 4} : txt))} className="p-2 text-white hover:bg-white/10 rounded-lg"><Plus size={16}/></button>
+                      <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: Math.max(12, txt.fontSize - 4)} : txt))} className="p-2 text-white hover:bg-white/10 rounded-lg border-r border-white/20"><Minus size={16}/></button>
+                      <button onClick={() => { setTexts(texts.filter(txt => txt.id !== t.id)); setSelectedId(null); }} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 size={16}/></button>
+                    </div>
+                  )}
                 </div>
               </Rnd>
             ))}
           </div>
         </motion.div>
 
-        {/* Sidebar */}
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-[200] flex flex-col gap-4 p-4 bg-white/90 backdrop-blur-xl rounded-[3rem] shadow-xl border border-stone-200">
-          <button onClick={() => setTool('hand')} className={cn("p-4 rounded-full transition-all", tool === 'hand' ? "bg-blue-600 text-white" : "text-stone-400")}>
+        {/* Sidebar الأدوات */}
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-[200] flex flex-col gap-4 p-4 bg-white/90 backdrop-blur-3xl rounded-[3rem] shadow-2xl border border-white">
+          <button onClick={() => {setTool('hand'); setSelectedId(null);}} className={cn("p-4 rounded-full transition-all", tool === 'hand' ? "bg-blue-600 text-white shadow-lg scale-110" : "text-stone-400 hover:bg-stone-50")}>
             <Grab size={26}/>
           </button>
-          <button onClick={() => setTool('pencil')} className={cn("p-4 rounded-full transition-all", tool === 'pencil' ? "bg-stone-900 text-white" : "text-stone-400")}>
+          <button onClick={() => {setTool('pencil'); setSelectedId(null);}} className={cn("p-4 rounded-full transition-all", tool === 'pencil' ? "bg-stone-900 text-white shadow-lg scale-110" : "text-stone-400 hover:bg-stone-50")}>
             <Pencil size={26}/>
           </button>
-          <button onClick={() => setTool('select')} className={cn("p-4 rounded-full transition-all", tool === 'select' ? "bg-stone-900 text-white" : "text-stone-400")}>
+          <button onClick={() => setTool('select')} className={cn("p-4 rounded-full transition-all", tool === 'select' ? "bg-stone-900 text-white shadow-lg scale-110" : "text-stone-400 hover:bg-stone-50")}>
             <Move size={26}/>
           </button>
           <div className="h-px bg-stone-100 mx-2" />
           <button onClick={() => { 
             const newId = Date.now().toString();
             setTexts([...texts, { id: newId, text: '', x: 500, y: 500, fontSize: 32 }]); 
-            setSelectedId(newId);
             setTool('select');
-          }} className="p-4 text-stone-400"><Type size={26}/></button>
-          <button onClick={() => fileInputRef.current?.click()} className="p-4 text-stone-400"><ImageIcon size={26}/></button>
+            setSelectedId(newId);
+          }} className="p-4 text-stone-400 hover:bg-stone-50 rounded-full transition-all"><Type size={26}/></button>
+          <button onClick={() => fileInputRef.current?.click()} className="p-4 text-stone-400 hover:bg-stone-50 rounded-full transition-all"><ImageIcon size={26}/></button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) {
               const reader = new FileReader();
               reader.onload = (ev) => {
                 const newId = Date.now().toString();
-                setImages([...images, { id: newId, url: ev.target?.result as string, x: 600, y: 600, width: 400, height: 400 }]);
-                setSelectedId(newId);
+                setImages([...images, { id: newId, url: ev.target?.result as string, x: 600, y: 600, width: 450, height: 450 }]);
                 setTool('select');
+                setSelectedId(newId);
               };
               reader.readAsDataURL(file);
             }
           }} />
-          <button onClick={() => setTool('eraser')} className={cn("p-4 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white" : "text-stone-400")}>
+          <div className="h-px bg-stone-100 mx-2" />
+          <button onClick={() => {setTool('eraser'); setSelectedId(null);}} className={cn("p-4 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-lg scale-110" : "text-stone-400 hover:bg-stone-50")}>
             <Eraser size={26}/>
           </button>
         </div>
