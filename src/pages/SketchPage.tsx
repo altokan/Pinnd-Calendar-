@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { motion, useMotionValue } from 'framer-motion';
 import { db, storage } from '../services/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -24,7 +24,6 @@ export default function SketchPage() {
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // التحكم باللوحة
   const scale = useMotionValue(1);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -58,8 +57,6 @@ export default function SketchPage() {
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    
-    const currentScale = scale.get();
     return {
       offsetX: (clientX - rect.left) * (canvas.width / rect.width),
       offsetY: (clientY - rect.top) * (canvas.height / rect.height)
@@ -79,7 +76,7 @@ export default function SketchPage() {
     const { offsetX, offsetY } = getCoordinates(e.nativeEvent || e);
     if (contextRef.current) {
       contextRef.current.strokeStyle = tool === 'eraser' ? '#ffffff' : color;
-      contextRef.current.lineWidth = tool === 'eraser' ? 50 : 5;
+      contextRef.current.lineWidth = tool === 'eraser' ? 60 : 5;
       contextRef.current.lineTo(offsetX, offsetY);
       contextRef.current.stroke();
     }
@@ -113,33 +110,22 @@ export default function SketchPage() {
       {/* Header */}
       <div className="z-[100] p-4 flex items-center justify-between bg-white/95 backdrop-blur-md border-b shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full transition-all">
-            <ChevronLeft size={24} />
-          </button>
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full"><ChevronLeft size={24} /></button>
           <h1 className="text-xl font-black italic tracking-tighter text-stone-900 uppercase">Studio Pro</h1>
         </div>
-
-        <div className="flex items-center gap-4">
-           <div className="flex items-center gap-2 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200">
-              <button onClick={() => scale.set(Math.max(0.2, scale.get() - 0.2))}><ZoomOut size={16}/></button>
-              <span className="text-[10px] font-black w-10 text-center">{Math.round(scale.get() * 100)}%</span>
-              <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))}><ZoomIn size={16}/></button>
-           </div>
-          <button 
-            onClick={saveEverything}
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-stone-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50 transition-all"
-          >
-            {saving ? <Loader2 className="animate-spin" size={14}/> : <Save size={14}/>}
-            {saving ? "Saving..." : "Save Project"}
-          </button>
-        </div>
+        <button 
+          onClick={saveEverything} 
+          disabled={saving}
+          className="px-8 py-3 bg-stone-900 text-white rounded-full font-black text-[10px] uppercase tracking-widest disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Project"}
+        </button>
       </div>
 
       {/* Main Workspace */}
       <div className="flex-1 relative overflow-hidden">
         <motion.div 
-          className="relative origin-center"
+          className="relative origin-center" 
           style={{ x, y, scale }}
           drag={tool === 'hand'}
           dragConstraints={{ left: -2000, right: 2000, top: -2000, bottom: 2000 }}
@@ -153,15 +139,12 @@ export default function SketchPage() {
             onTouchStart={startDrawing}
             onTouchMove={draw}
             onTouchEnd={() => setIsDrawing(false)}
-            className={cn(
-              "shadow-2xl bg-white",
-              tool === 'pencil' ? "cursor-crosshair" : tool === 'hand' ? "cursor-grab active:cursor-grabbing" : "cursor-default"
-            )}
+            className={cn("shadow-2xl bg-white", tool === 'pencil' ? "cursor-crosshair" : tool === 'hand' ? "cursor-grab active:cursor-grabbing" : "cursor-default")}
           />
 
           {/* Interactive Elements Layer */}
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Images with Pinch Support */}
+          <div className="absolute inset-0" style={{ pointerEvents: tool === 'select' ? 'auto' : 'none' }}>
+            {/* Images */}
             {images.map((img) => (
               <Rnd
                 key={img.id}
@@ -176,23 +159,24 @@ export default function SketchPage() {
                 bounds="parent"
                 enableResizing={tool === 'select'}
                 disableDragging={tool !== 'select'}
-                style={{ pointerEvents: 'auto', zIndex: 10 }}
+                style={{ zIndex: 10 }}
               >
-                <div className={cn("relative w-full h-full group transition-all", tool === 'select' ? "border-2 border-blue-500 ring-4 ring-blue-500/20" : "border-transparent")}>
-                  <img src={img.url} className="w-full h-full object-contain pointer-events-none" alt="" />
+                <div className={cn("relative w-full h-full group", tool === 'select' && "border-2 border-blue-500")}>
+                  <img src={img.url} className="w-full h-full object-contain pointer-events-none" />
                   {tool === 'select' && (
                     <button 
+                      onPointerDown={(e) => e.stopPropagation()} // لمنع سحب الصورة عند الضغط على الحذف
                       onClick={() => setImages(images.filter(i => i.id !== img.id))}
-                      className="absolute -top-4 -right-4 bg-red-500 text-white rounded-full p-1.5 shadow-xl transition-transform hover:scale-110 active:scale-90"
+                      className="absolute -top-4 -right-4 bg-red-500 text-white rounded-full p-2 z-50 pointer-events-auto shadow-xl"
                     >
-                      <X size={14}/>
+                      <X size={16}/>
                     </button>
                   )}
                 </div>
               </Rnd>
             ))}
 
-            {/* Texts with Delete and Zoom Support */}
+            {/* Texts */}
             {texts.map((t) => (
               <Rnd
                 key={t.id}
@@ -200,30 +184,29 @@ export default function SketchPage() {
                 onDragStop={(_, d) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, x: d.x, y: d.y} : txt))}
                 bounds="parent"
                 disableDragging={tool !== 'select'}
-                style={{ pointerEvents: 'auto', zIndex: 20 }}
+                style={{ zIndex: 20 }}
               >
-                <div className={cn("group relative p-4 min-w-[150px]", tool === 'select' && "bg-white/50 backdrop-blur-sm border-2 border-dashed border-stone-400 rounded-xl shadow-lg")}>
+                <div className={cn("group relative p-4 min-w-[150px]", tool === 'select' && "border-2 border-dashed border-stone-400 bg-white/30 backdrop-blur-sm rounded-xl")}>
                   <textarea
                     defaultValue={t.text}
-                    className="bg-transparent border-none font-black italic text-stone-900 outline-none resize-none text-center w-full overflow-hidden"
+                    className="bg-transparent border-none font-black italic text-stone-900 outline-none resize-none text-center w-full pointer-events-auto"
                     style={{ fontSize: `${t.fontSize}px`, minHeight: '50px' }}
                     onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, text: e.target.value} : txt))}
                   />
                   {tool === 'select' && (
-                    <div className="absolute -top-3 -right-3 flex gap-1">
-                       <button 
+                    <>
+                      <button 
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => setTexts(texts.filter(txt => txt.id !== t.id))}
-                        className="bg-red-500 text-white p-1.5 rounded-full shadow-lg"
+                        className="absolute -top-4 -right-4 bg-red-500 text-white rounded-full p-2 z-50 pointer-events-auto shadow-xl"
                       >
-                        <Trash2 size={12}/>
+                        <Trash2 size={16}/>
                       </button>
-                    </div>
-                  )}
-                  {tool === 'select' && (
-                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex gap-2 bg-stone-900 p-1 rounded-full shadow-2xl">
-                      <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: txt.fontSize + 4} : txt))} className="text-white px-3 py-1 text-xs font-bold border-r border-white/20 hover:bg-white/10">+</button>
-                      <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: Math.max(12, txt.fontSize - 4)} : txt))} className="text-white px-3 py-1 text-xs font-bold hover:bg-white/10">-</button>
-                    </div>
+                      <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex gap-2 bg-stone-900 p-1 rounded-full z-50 pointer-events-auto shadow-2xl">
+                        <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: txt.fontSize + 4} : txt))} className="text-white px-3 py-1 font-bold border-r border-white/20">+</button>
+                        <button onClick={() => setTexts(texts.map(txt => txt.id === t.id ? {...txt, fontSize: Math.max(12, txt.fontSize - 4)} : txt))} className="text-white px-3 py-1 font-bold">-</button>
+                      </div>
+                    </>
                   )}
                 </div>
               </Rnd>
@@ -243,10 +226,10 @@ export default function SketchPage() {
             <Move size={26}/>
           </button>
           <div className="h-px bg-stone-100 mx-2" />
-          <button onClick={() => { setTexts([...texts, { id: Date.now().toString(), text: 'New Text', x: 500, y: 500, fontSize: 32 }]); setTool('select'); }} className="p-4 text-stone-400 hover:bg-stone-100 rounded-[1.8rem] transition-all">
+          <button onClick={() => { setTexts([...texts, { id: Date.now().toString(), text: 'New Text', x: 500, y: 500, fontSize: 32 }]); setTool('select'); }} className="p-4 text-stone-400 hover:bg-stone-100 rounded-[1.8rem]">
             <Type size={26}/>
           </button>
-          <button onClick={() => fileInputRef.current?.click()} className="p-4 text-stone-400 hover:bg-stone-100 rounded-[1.8rem] transition-all">
+          <button onClick={() => fileInputRef.current?.click()} className="p-4 text-stone-400 hover:bg-stone-100 rounded-[1.8rem]">
             <ImageIcon size={26}/>
           </button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
