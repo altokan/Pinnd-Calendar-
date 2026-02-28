@@ -2,31 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
-import { Loader2, Info, Plus, Clock, MapPin, X, Calendar, FileText, Camera } from 'lucide-react';
+import { Loader2, Info, Plus, Clock, MapPin, X, Calendar, FileText, Camera, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // استيراد مكتبة الخرائط
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// إصلاح الأيقونات
+// إعداد الأيقونة الافتراضية
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
+  iconSize: [28, 45],
+  iconAnchor: [14, 45],
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// مكون الزوم الذكي
 const MapAutoZoom = ({ events }: { events: any[] }) => {
   const map = useMap();
   useEffect(() => {
     if (events.length > 0) {
       const bounds = L.latLngBounds(events.map(e => [e.lat, e.lng]));
-      map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 13, animate: true, duration: 1.5 });
+      map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 13, duration: 1.5 });
     }
   }, [events, map]);
   return null;
@@ -35,24 +33,23 @@ const MapAutoZoom = ({ events }: { events: any[] }) => {
 const MapsPage: React.FC = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<any>(null); // الحدث المختار لعرض تفاصيله
+  const [activeGroup, setActiveGroup] = useState<any[] | null>(null); // قائمة الأحداث في الموقع المختار
+  const [selectedEvent, setSelectedEvent] = useState<any>(null); // تفاصيل الحدث الواحد
   const navigate = useNavigate();
 
   useEffect(() => {
     const qEvents = query(collection(db, "events"));
     const qPins = query(collection(db, "pins"));
 
-    const processData = (snapshot: any, source: string) => {
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), source }));
-    };
+    const processData = (snapshot: any, source: string) => 
+      snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), source }));
 
     let allData: any[] = [];
     const updateState = (newData: any[], type: string) => {
-      if (type === 'events') {
-        allData = [...newData, ...allData.filter(d => d.source === 'pin')];
-      } else {
-        allData = [...newData, ...allData.filter(d => d.source === 'event')];
-      }
+      allData = type === 'events' 
+        ? [...newData, ...allData.filter(d => d.source === 'pin')]
+        : [...newData, ...allData.filter(d => d.source === 'event')];
+      
       setEvents(allData.filter(e => typeof e.lat === 'number' && typeof e.lng === 'number'));
       setLoading(false);
     };
@@ -73,153 +70,136 @@ const MapsPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] space-y-4 font-sans relative" dir="ltr">
+    <div className="flex flex-col h-[calc(100vh-140px)] space-y-4 relative overflow-hidden font-sans bg-stone-50" dir="ltr">
       {/* Header */}
-      <div className="flex justify-between items-center px-2">
+      <div className="flex justify-between items-center px-6 pt-4">
         <div>
-          <h1 className="text-3xl font-black text-stone-900 italic tracking-tighter uppercase">Maps</h1>
-          <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em]">Smart Event Tracker</p>
+          <h1 className="text-4xl font-black text-stone-900 italic tracking-tighter">MAPS</h1>
+          <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.3em]">Lifestyle Location Tracker</p>
         </div>
-        <button 
-          onClick={() => navigate('/add-event')}
-          className="bg-stone-900 text-white p-4 rounded-[1.5rem] shadow-xl hover:scale-105 transition-all"
-        >
+        <button onClick={() => navigate('/add-event')} className="bg-stone-900 text-white p-5 rounded-[2rem] shadow-2xl hover:scale-105 transition-transform">
           <Plus size={24} />
         </button>
       </div>
 
-      {/* Map Container */}
-      <div className="flex-1 rounded-[3rem] overflow-hidden relative border-[6px] border-white shadow-2xl bg-stone-100 z-0">
+      {/* Map Surface */}
+      <div className="flex-1 m-4 rounded-[3.5rem] overflow-hidden relative border-[8px] border-white shadow-2xl bg-white z-0">
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center z-50 bg-white/60 backdrop-blur-md">
-            <Loader2 className="animate-spin text-stone-900" size={32} />
+          <div className="absolute inset-0 flex items-center justify-center z-50 bg-white/80 backdrop-blur-md">
+            <Loader2 className="animate-spin text-stone-900" size={40} />
           </div>
         ) : (
           <MapContainer center={[24.7136, 46.6753]} zoom={6} style={{ height: '100%', width: '100%' }} zoomControl={false}>
             <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
             <MapAutoZoom events={events} />
-            
-            {groupedEvents.map((group: any, idx) => {
-              const first = group[0];
-              return (
-                <Marker key={idx} position={[first.lat, first.lng]}>
-                  <Popup className="custom-popup">
-                    <div className="p-1 text-center min-w-[180px]">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Events at this location</span>
-                      <div className="space-y-2 max-h-[150px] overflow-y-auto no-scrollbar py-1">
-                        {group.map((e: any) => (
-                          <button 
-                            key={e.id}
-                            onClick={() => setSelectedEvent(e)}
-                            className="w-full text-left p-2 rounded-xl border border-stone-50 hover:bg-stone-50 transition-all group flex items-center justify-between"
-                          >
-                            <div className="overflow-hidden">
-                              <h4 className="font-black text-stone-900 text-xs truncate m-0">{e.title}</h4>
-                              <p className="text-[8px] text-stone-400 font-bold m-0 uppercase">{e.time}</p>
-                            </div>
-                            <div className="w-5 h-5 bg-stone-900 text-white rounded-full flex items-center justify-center text-[10px] shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              →
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
+            {groupedEvents.map((group: any, idx) => (
+              <Marker key={idx} position={[group[0].lat, group[0].lng]} eventHandlers={{ click: () => setActiveGroup(group) }} />
+            ))}
           </MapContainer>
         )}
       </div>
 
-      {/* عرض تفاصيل الحدث بالكامل (Full Detail Modal) */}
+      {/* 1. قائمة الأحداث - تظهر في منتصف الصفحة (Image 1 Style) */}
+      <AnimatePresence>
+        {activeGroup && !selectedEvent && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-sm rounded-[3rem] shadow-3xl border-4 border-white overflow-hidden"
+            >
+              <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+                <span className="text-[11px] font-black text-stone-900 uppercase tracking-widest">Select Event ({activeGroup.length})</span>
+                <button onClick={() => setActiveGroup(null)} className="p-2 hover:bg-stone-200 rounded-full transition-colors"><X size={20}/></button>
+              </div>
+              <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
+                {activeGroup.map((e) => (
+                  <button key={e.id} onClick={() => setSelectedEvent(e)}
+                    className="w-full flex items-center justify-between p-5 bg-stone-50 hover:bg-stone-900 hover:text-white rounded-[2rem] transition-all group"
+                  >
+                    <div className="text-left">
+                      <h4 className="font-black text-sm uppercase italic">{e.title}</h4>
+                      <p className="text-[10px] font-bold opacity-60 tracking-tight">{e.time} • {e.date}</p>
+                    </div>
+                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. تفاصيل الحدث الكاملة - ديناميكية وكبيرة (Image 2 Style) */}
       <AnimatePresence>
         {selectedEvent && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[2000] flex items-end justify-center p-4 bg-stone-900/40 backdrop-blur-md"
-          >
-            <motion.div 
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-3xl border-4 border-white"
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xl">
+            <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
+              className="bg-white w-full max-w-2xl rounded-[4rem] shadow-4xl border-[6px] border-white overflow-hidden relative"
             >
-              {/* صورة الحدث */}
-              <div className="h-48 relative bg-stone-100">
+              {/* Image Section */}
+              <div className="h-64 md:h-80 relative bg-stone-100">
                 {selectedEvent.imageUrl ? (
                   <img src={selectedEvent.imageUrl} className="w-full h-full object-cover" alt="" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-stone-200">
-                    <Camera size={40} />
-                  </div>
+                  <div className="w-full h-full flex items-center justify-center text-stone-200 bg-stone-50"><Camera size={60} strokeWidth={1}/></div>
                 )}
-                <button 
-                  onClick={() => setSelectedEvent(null)}
-                  className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black transition-all"
-                >
-                  <X size={20} />
-                </button>
+                <button onClick={() => setSelectedEvent(null)} className="absolute top-8 right-8 p-3 bg-white/20 backdrop-blur-xl text-white rounded-full hover:bg-white hover:text-stone-900 transition-all border border-white/30"><X size={24} /></button>
               </div>
 
-              {/* محتوى التفاصيل */}
-              <div className="p-6 space-y-4">
-                <div>
-                  <h2 className="text-2xl font-black text-stone-900 italic leading-tight">{selectedEvent.title}</h2>
-                  <div className="flex gap-4 mt-3">
-                    <div className="flex items-center gap-1.5 text-stone-400">
-                      <Calendar size={14} />
-                      <span className="text-[10px] font-bold uppercase">{selectedEvent.date}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-stone-400">
-                      <Clock size={14} />
-                      <span className="text-[10px] font-bold uppercase">{selectedEvent.time}</span>
-                    </div>
+              {/* Content Section */}
+              <div className="p-8 md:p-12 -mt-10 bg-white rounded-t-[4rem] relative z-10 space-y-8">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-stone-400 font-black text-[10px] uppercase tracking-[0.3em]">
+                    <Calendar size={14}/> {selectedEvent.date} <span className="mx-2 opacity-30">|</span> <Clock size={14}/> {selectedEvent.time}
                   </div>
+                  <h2 className="text-4xl md:text-5xl font-black text-stone-900 italic tracking-tighter leading-none uppercase">{selectedEvent.title}</h2>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-100">
-                    <MapPin className="text-stone-400 shrink-0" size={18} />
-                    <p className="text-xs font-bold text-stone-700 leading-snug">
-                      {selectedEvent.location || "No location address provided"}
-                    </p>
+                <div className="grid gap-4">
+                  <div className="flex items-start gap-4 p-6 bg-stone-50 rounded-[2.5rem] border border-stone-100">
+                    <MapPin className="text-blue-500 shrink-0 mt-1" size={24} />
+                    <div>
+                      <span className="text-[9px] font-black text-stone-300 uppercase block mb-1">Location</span>
+                      <p className="text-sm font-bold text-stone-700 leading-relaxed">{selectedEvent.location || "Location not specified"}</p>
+                    </div>
                   </div>
 
                   {selectedEvent.notes && (
-                    <div className="flex items-start gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-100">
-                      <FileText className="text-stone-400 shrink-0" size={18} />
-                      <p className="text-xs text-stone-600 italic leading-relaxed">
-                        {selectedEvent.notes}
-                      </p>
+                    <div className="flex items-start gap-4 p-6 bg-stone-50 rounded-[2.5rem] border border-stone-100">
+                      <FileText className="text-amber-500 shrink-0 mt-1" size={24} />
+                      <div>
+                        <span className="text-[9px] font-black text-stone-300 uppercase block mb-1">Details & Notes</span>
+                        <p className="text-sm text-stone-600 italic leading-relaxed font-medium">{selectedEvent.notes}</p>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                   <button 
-                    onClick={() => navigate(`/?date=${selectedEvent.date}&openEvent=${selectedEvent.id}`)}
-                    className="flex-1 py-4 bg-stone-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-black transition-all"
-                  >
-                    Calendar View
-                  </button>
+                {/* Footer Buttons */}
+                <div className="flex flex-col md:flex-row gap-4 pt-4">
                   <button 
-                    onClick={() => setSelectedEvent(null)}
-                    className="flex-1 py-4 bg-stone-100 text-stone-900 text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-stone-200 transition-all"
+                    onClick={() => navigate(`/?date=${selectedEvent.date}&openEvent=${selectedEvent.id}`)}
+                    className="flex-1 py-6 bg-stone-900 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-2"
                   >
-                    Close
+                    GO TO EVENT <ArrowRight size={18}/>
+                  </button>
+                  <button onClick={() => setSelectedEvent(null)}
+                    className="flex-1 py-6 bg-stone-100 text-stone-900 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] hover:bg-stone-200 transition-all"
+                  >
+                    CLOSE
                   </button>
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* كارت إحصائي */}
-      <div className="absolute bottom-6 left-6 z-[1000] bg-stone-900/90 backdrop-blur-xl p-4 rounded-3xl border border-white/10 shadow-2xl flex items-center gap-4">
-        <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-white"><Info size={18} /></div>
+      {/* Floating Info */}
+      <div className="absolute bottom-10 left-10 z-[500] bg-stone-900/90 backdrop-blur-2xl p-5 rounded-[2.5rem] border border-white/20 shadow-4xl flex items-center gap-4">
+        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white"><Info size={22} /></div>
         <div>
-          <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Database</p>
-          <p className="text-lg font-black text-white leading-none">{events.length} Active Pins</p>
+          <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest leading-none mb-1">EXPLORING</p>
+          <p className="text-xl font-black text-white leading-none">{events.length} ACTIVE PINS</p>
         </div>
       </div>
     </div>
