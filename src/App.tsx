@@ -2,48 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion'; // تم حذف AnimatePresence لحل المشكلة جذرياً
+
+// حل مشكلة ReferenceError: استيراد motion فقط وتجنب AnimatePresence
+import { motion } from 'framer-motion'; 
 import { ChevronRight, X, Loader2 } from 'lucide-react';
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './ThemeContext';
 
 import Layout from './components/Layout';
-import NotificationBanner from './components/NotificationBanner';
-
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
-import AddToHomeScreen from './pages/AddToHomeScreen';
-import ContactPage from './pages/ContactPage';
-import NotificationsPage from './pages/NotificationsPage';
-import SketchPage from './pages/SketchPage';
 
-/* Firebase Services */
-import { listenForegroundNotifications } from "./services/firebase-messaging";
 import { db } from "./services/firebase";
-import { doc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
+// مكون الحماية الداخلي لضمان عدم حدوث أخطاء استيراد
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
   children,
   adminOnly = false
 }) => {
   const { user, loading, isAdmin } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F9F8F6]">
-        <Loader2 className="animate-spin text-stone-300" size={40} />
-      </div>
-    );
-  }
-
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
   if (!user) return <Navigate to="/login" />;
   if (adminOnly && !isAdmin) return <Navigate to="/" />;
-
   return <>{children}</>;
 };
 
@@ -51,120 +36,53 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
   const [dynamicSlides, setDynamicSlides] = useState<any[]>([]);
-  const [isConfigLoading, setIsConfigLoading] = useState(true);
 
   useEffect(() => {
-    listenForegroundNotifications();
-
-    const unsubConfig = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
+    const unsub = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
       if (snap.exists()) {
-        const configData = snap.data();
-        const serverVersion = configData.onboardingVersion;
-        const slides = configData.slides || [];
-
-        setDynamicSlides(slides);
-
-        const localVersion = localStorage.getItem('app_onboard_version');
-        if (localVersion !== serverVersion && slides.length > 0) {
+        const data = snap.data();
+        setDynamicSlides(data.slides || []);
+        if (localStorage.getItem('app_onboard_version') !== data.onboardingVersion) {
           setShowOnboarding(true);
-          localStorage.setItem('target_onboard_version', serverVersion);
+          localStorage.setItem('target_version', data.onboardingVersion);
         }
       }
-      setIsConfigLoading(false);
     });
-
-    return () => unsubConfig();
+    return () => unsub();
   }, []);
 
-  const handleCompleteOnboarding = () => {
-    const targetVersion = localStorage.getItem('target_onboard_version');
-    if (targetVersion) {
-      localStorage.setItem('app_onboard_version', targetVersion);
-    }
+  const finishOnboard = () => {
+    localStorage.setItem('app_onboard_version', localStorage.getItem('target_version') || "");
     setShowOnboarding(false);
   };
-
-  if (isConfigLoading) return null;
 
   return (
     <AuthProvider>
       <ThemeProvider>
         <Router>
-          <NotificationBanner />
-          <Toaster position="top-center" toastOptions={{ className: 'rounded-2xl font-sans text-sm' }} />
-
-          {/* Onboarding Section - Optimized for iPad/Mobile & English LTR */}
+          <Toaster position="top-center" />
+          
+          {/* Onboarding - Simple Logic */}
           {showOnboarding && dynamicSlides.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans"
-              dir="ltr"
-            >
-              <button 
-                onClick={handleCompleteOnboarding} 
-                className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors"
-              >
-                <X size={32}/>
-              </button>
-              
-              <div className="w-full max-w-sm space-y-10">
-                <motion.div 
-                  key={onboardStep}
-                  initial={{ x: 20, opacity: 0 }} 
-                  animate={{ x: 0, opacity: 1 }}
-                  className="space-y-10"
-                >
-                  <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white mx-auto">
-                    <img 
-                       src={dynamicSlides[onboardStep].img} 
-                       alt="Feature" 
-                       className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="space-y-4 px-2">
-                    <h2 className="text-3xl font-black text-stone-900 leading-tight">
-                      {dynamicSlides[onboardStep].title}
-                    </h2>
-                    <p className="text-stone-400 text-lg font-medium leading-relaxed">
-                      {dynamicSlides[onboardStep].desc}
-                    </p>
-                  </div>
-                </motion.div>
-              </div>
-
-              <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
-                <div className="flex gap-2">
-                  {dynamicSlides.map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`h-1.5 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-8 bg-stone-900' : 'w-2 bg-stone-100'}`} 
-                    />
-                  ))}
+            <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center" dir="ltr">
+              <div className="w-full max-w-sm space-y-8">
+                <div className="w-full aspect-square bg-stone-100 rounded-[3rem] overflow-hidden">
+                  <img src={dynamicSlides[onboardStep].img} className="w-full h-full object-cover" alt="" />
                 </div>
-                <button 
-                  onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                  className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 font-black text-lg active:scale-95 transition-all"
-                >
-                  <span>{onboardStep === dynamicSlides.length - 1 ? "Get Started" : "Continue"}</span>
-                  <ChevronRight size={24} />
+                <h2 className="text-2xl font-black">{dynamicSlides[onboardStep].title}</h2>
+                <p className="text-stone-400">{dynamicSlides[onboardStep].desc}</p>
+                <button onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : finishOnboard()} className="w-full bg-stone-900 text-white py-4 rounded-2xl font-bold">
+                  {onboardStep === dynamicSlides.length - 1 ? "Start" : "Next"}
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
-            <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
-            <Route path="/add-to-home" element={<ProtectedRoute><Layout><AddToHomeScreen /></Layout></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
-            <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
-            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
       </ThemeProvider>
