@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-
-// تم إصلاح الاستيراد هنا بإضافة AnimatePresence
-import { motion, AnimatePresence } from 'framer-motion'; 
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, X, Loader2 } from 'lucide-react';
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -58,7 +56,7 @@ export default function App() {
   useEffect(() => {
     listenForegroundNotifications();
 
-    // ✅ Fetch Onboarding Config (LTR/English Ready)
+    // ✅ Fetch Onboarding configuration from Firestore
     const unsubConfig = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
       if (snap.exists()) {
         const configData = snap.data();
@@ -76,6 +74,7 @@ export default function App() {
       setIsConfigLoading(false);
     });
 
+    // Real-time notifications for Admin
     const qNotify = query(
       collection(db, "admin_notifications"),
       orderBy("createdAt", "desc"),
@@ -113,7 +112,6 @@ export default function App() {
           <NotificationBanner />
           <Toaster position="top-center" toastOptions={{ className: 'rounded-2xl font-sans text-sm' }} />
 
-          {/* Optimized English Onboarding Section */}
           <AnimatePresence>
             {showOnboarding && dynamicSlides.length > 0 && (
               <motion.div 
@@ -123,9 +121,10 @@ export default function App() {
                 className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans"
                 dir="ltr"
               >
+                {/* Skip / Close Button */}
                 <button 
                   onClick={handleCompleteOnboarding} 
-                  className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors p-2"
+                  className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors"
                 >
                   <X size={32}/>
                 </button>
@@ -135,16 +134,19 @@ export default function App() {
                   initial={{ x: 50, opacity: 0 }} 
                   animate={{ x: 0, opacity: 1 }} 
                   exit={{ x: -50, opacity: 0 }}
-                  className="w-full max-w-sm space-y-8"
+                  className="w-full max-w-sm space-y-10"
                 >
+                  {/* Image Container - Mobile Optimized */}
                   <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl flex items-center justify-center border-4 border-white mx-auto">
                     <img 
                        src={dynamicSlides[onboardStep].img} 
-                       alt="Feature" 
+                       alt="Feature Illustration" 
                        className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="space-y-4 px-2">
+
+                  {/* Text Content */}
+                  <div className="space-y-4 px-2 text-center">
                     <h2 className="text-3xl font-black text-stone-900 leading-tight">
                       {dynamicSlides[onboardStep].title}
                     </h2>
@@ -154,7 +156,9 @@ export default function App() {
                   </div>
                 </motion.div>
 
+                {/* Footer Navigation */}
                 <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
+                  {/* Progress Indicators (Dots) */}
                   <div className="flex gap-2">
                     {dynamicSlides.map((_, i) => (
                       <div 
@@ -164,9 +168,10 @@ export default function App() {
                     ))}
                   </div>
 
+                  {/* Action Button */}
                   <button 
                     onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                    className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 font-black text-lg"
+                    className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 font-black text-lg"
                   >
                     <span>{onboardStep === dynamicSlides.length - 1 ? "Get Started" : "Continue"}</span>
                     <ChevronRight size={24} />
@@ -181,6 +186,7 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             
+            {/* Protected Routes wrapped in Layout */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
             <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
@@ -189,6 +195,7 @@ export default function App() {
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
             <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
             
+            {/* Catch-all Redirect */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
