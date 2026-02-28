@@ -5,11 +5,11 @@ import {
 } from 'date-fns';
 import { 
   ChevronLeft, ChevronRight, Plus, Image as ImageIcon, 
-  X, Save, Loader2, Calendar as CalendarIcon
+  X, Save, Loader2, Calendar as CalendarIcon, MapPin, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -29,17 +29,21 @@ export default function CalendarPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // جلب البيانات من فايربيس
+  // Fetching Pins
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'pins'), where('userId', '==', user.uid));
+    const q = query(
+      collection(db, 'pins'), 
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setPins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
   }, [user]);
 
-  // حساب أيام التقويم
+  // Calendar Logic
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
   const calendarDays = eachDayOfInterval({
@@ -57,7 +61,7 @@ export default function CalendarPage() {
 
   const handleAddPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedDate || !title) return toast.error('Please add a title');
+    if (!user || !selectedDate || !title) return toast.error('Please enter a title');
 
     try {
       setLoading(true);
@@ -78,11 +82,11 @@ export default function CalendarPage() {
         createdAt: serverTimestamp(),
       });
 
-      toast.success('Event pinned successfully!');
+      toast.success('Pinned successfully');
       resetForm();
     } catch (error: any) {
       console.error(error);
-      toast.error('Failed to save event');
+      toast.error('Failed to save pin');
     } finally {
       setLoading(false);
     }
@@ -97,87 +101,108 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-in fade-in duration-700">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-10">
-        <div>
-          <h2 className="text-3xl font-black tracking-tighter italic">
-            {format(currentDate, 'MMMM')} <span className="text-stone-400 font-light">{format(currentDate, 'yyyy')}</span>
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
+      {/* Calendar Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+        <div className="space-y-1">
+          <h2 className="text-4xl font-serif italic text-stone-900 leading-none">
+            {format(currentDate, 'MMMM')}
           </h2>
+          <p className="text-stone-400 font-medium tracking-widest uppercase text-xs">
+            Year of {format(currentDate, 'yyyy')}
+          </p>
         </div>
-        <div className="flex gap-2 bg-stone-100 p-1.5 rounded-2xl border border-stone-200">
-          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all"><ChevronLeft size={20}/></button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-4 text-xs font-bold uppercase tracking-widest">Today</button>
-          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all"><ChevronRight size={20}/></button>
+
+        <div className="flex items-center gap-2 bg-white/50 backdrop-blur-md p-1.5 rounded-2xl border border-stone-200/50 shadow-sm">
+          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-stone-100 rounded-xl transition-all"><ChevronLeft size={20}/></button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 text-[10px] font-bold uppercase tracking-tighter hover:text-stone-500 transition-colors">Today</button>
+          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-stone-100 rounded-xl transition-all"><ChevronRight size={20}/></button>
         </div>
       </div>
 
-      {/* Grid Calendar */}
-      <div className="grid grid-cols-7 gap-px bg-stone-200 border border-stone-200 rounded-[2rem] overflow-hidden shadow-sm">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="bg-stone-50 py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 border-b border-stone-200">
-            {day}
-          </div>
-        ))}
-        
-        {calendarDays.map((day, idx) => {
-          const dayPins = pins.filter(p => p.date === format(day, 'yyyy-MM-dd'));
-          const isCurrentMonth = isSameDay(startOfMonth(day), monthStart);
-
-          return (
-            <div 
-              key={idx}
-              onClick={() => { setSelectedDate(day); setIsAddModalOpen(true); }}
-              className={cn(
-                "min-h-[120px] p-2 bg-white transition-all cursor-pointer hover:bg-stone-50 relative group",
-                !isCurrentMonth && "bg-stone-50/50 text-stone-300"
-              )}
-            >
-              <span className={cn(
-                "inline-flex w-7 h-7 items-center justify-center rounded-full text-sm font-bold transition-all",
-                isToday(day) ? "bg-[var(--primary-color)] text-white shadow-lg" : "text-stone-700 group-hover:bg-stone-100"
-              )}>
-                {format(day, 'd')}
-              </span>
-
-              <div className="mt-2 space-y-1">
-                {dayPins.map((pin, i) => (
-                  <div key={i} className="text-[10px] bg-stone-100 p-1.5 rounded-lg border border-stone-200 truncate font-bold flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary-color)]" />
-                    {pin.title}
-                  </div>
-                ))}
-              </div>
+      {/* Main Calendar Grid */}
+      <div className="bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-xl shadow-stone-200/50 overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-stone-100">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="py-4 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400">
+              {day}
             </div>
-          );
-        })}
+          ))}
+        </div>
+        
+        <div className="grid grid-cols-7">
+          {calendarDays.map((day, idx) => {
+            const dayPins = pins.filter(p => p.date === format(day, 'yyyy-MM-dd'));
+            const isCurrentMonth = isSameDay(startOfMonth(day), monthStart);
+
+            return (
+              <div 
+                key={idx}
+                onClick={() => { setSelectedDate(day); setIsAddModalOpen(true); }}
+                className={cn(
+                  "min-h-[140px] p-3 border-r border-b border-stone-100/50 transition-all cursor-pointer hover:bg-white/80 relative group",
+                  !isCurrentMonth && "opacity-30",
+                  idx % 7 === 6 && "border-r-0"
+                )}
+              >
+                <span className={cn(
+                  "inline-flex w-8 h-8 items-center justify-center rounded-full text-sm font-medium mb-2",
+                  isToday(day) ? "bg-stone-900 text-white shadow-md shadow-stone-300" : "text-stone-800"
+                )}>
+                  {format(day, 'd')}
+                </span>
+
+                <div className="space-y-1.5 overflow-hidden">
+                  {dayPins.map((pin, i) => (
+                    <div key={i} className="flex flex-col gap-1 p-1">
+                      {pin.imageUrl && (
+                        <img src={pin.imageUrl} className="h-10 w-full object-cover rounded-lg border border-white shadow-sm" alt="pin" />
+                      )}
+                      <p className="text-[10px] font-bold truncate text-stone-700 leading-tight">{pin.title}</p>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-6 h-6 rounded-full bg-stone-50 flex items-center justify-center border border-stone-200">
+                    <Plus size={12} className="text-stone-400" />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Add Pin Modal */}
+      {/* Add Pin Overlay */}
       <AnimatePresence>
         {isAddModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl relative">
-              <button onClick={resetForm} className="absolute top-8 right-8 p-2 hover:bg-stone-100 rounded-full transition-all text-stone-400 hover:text-black"><X size={20}/></button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/20 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[2rem] w-full max-w-lg p-10 shadow-2xl relative border border-stone-100">
+              <button onClick={resetForm} className="absolute top-8 right-8 p-2 hover:bg-stone-50 rounded-full transition-all text-stone-300 hover:text-stone-900"><X size={20}/></button>
               
-              <div className="mb-8 text-center sm:text-left">
-                <h3 className="text-2xl font-black tracking-tight">Add Pin</h3>
-                <p className="text-stone-400 font-medium">For {selectedDate && format(selectedDate, 'EEEE, MMMM do')}</p>
+              <div className="mb-10">
+                <h3 className="text-2xl font-serif italic mb-1">New Pin</h3>
+                <p className="text-stone-400 text-xs font-medium uppercase tracking-widest">{selectedDate && format(selectedDate, 'MMMM do, yyyy')}</p>
               </div>
               
-              <form onSubmit={handleAddPin} className="space-y-5">
-                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full px-6 py-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none font-bold" />
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (Optional)" className="w-full px-6 py-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none resize-none h-28" />
+              <form onSubmit={handleAddPin} className="space-y-6">
+                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Pin Title" className="w-full text-xl font-medium placeholder:text-stone-200 border-none focus:ring-0 p-0 outline-none" />
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add some notes or details..." className="w-full text-sm text-stone-500 placeholder:text-stone-200 border-none focus:ring-0 p-0 outline-none resize-none h-24" />
                 
-                <label className="flex flex-col items-center justify-center w-full py-6 border-2 border-dashed border-stone-200 rounded-2xl cursor-pointer hover:bg-stone-50 transition-all">
-                  <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
-                  {previewUrl ? <img src={previewUrl} className="h-16 w-16 object-cover rounded-xl" /> : <ImageIcon className="text-stone-300" />}
-                  <span className="text-xs font-bold text-stone-400 mt-2">Upload Photo</span>
-                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-xl border border-stone-100 cursor-pointer hover:bg-stone-100 transition-colors">
+                    <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
+                    {previewUrl ? <img src={previewUrl} className="h-6 w-6 object-cover rounded-md" /> : <ImageIcon size={16} className="text-stone-400" />}
+                    <span className="text-xs font-bold text-stone-600">Photo</span>
+                  </label>
+                </div>
 
-                <button disabled={loading} type="submit" className="w-full py-5 bg-black text-white rounded-2xl font-black transition-all flex items-center justify-center gap-3">
-                  {loading ? <Loader2 className="animate-spin" /> : <span>Save Pin</span>}
-                </button>
+                <div className="pt-6 border-t border-stone-50">
+                  <button disabled={loading} type="submit" className="w-full py-4 bg-stone-900 text-white rounded-2xl font-bold shadow-xl shadow-stone-200 hover:bg-black transition-all flex items-center justify-center gap-3">
+                    {loading ? <Loader2 className="animate-spin" size={20}/> : <span>Create Pin</span>}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </motion.div>
