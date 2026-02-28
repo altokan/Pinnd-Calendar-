@@ -6,7 +6,6 @@ import {
   Home, 
   User, 
   ShieldCheck, 
-  LogOut, 
   Map as MapIcon, 
   Bell, 
   PenTool,
@@ -16,54 +15,60 @@ import {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    if (window.confirm("Do you want to logout?")) {
-      await signOut(auth);
-      navigate('/login');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F9F8F6] flex flex-col font-sans">
+      
+      {/* Header العلوي: يحتوي على لوحة التحكم والبروفايل */}
+      <header className="flex justify-between items-center p-6 bg-transparent z-10">
+        <h1 className="text-xl font-black tracking-tighter text-stone-900">PINNED</h1>
+        <div className="flex gap-3">
+          {/* زر لوحة التحكم */}
+          <NavLink to="/admin" className="p-3 bg-white/50 backdrop-blur-md rounded-2xl border border-white shadow-sm text-stone-900 active:scale-90 transition-all">
+            <ShieldCheck size={20} />
+          </NavLink>
+          {/* زر البروفايل */}
+          <NavLink to="/profile" className="p-3 bg-white/50 backdrop-blur-md rounded-2xl border border-white shadow-sm text-stone-900 active:scale-90 transition-all">
+            <User size={20} />
+          </NavLink>
+        </div>
+      </header>
+
       {/* منطقة المحتوى */}
-      <main className="flex-1 pb-32 p-4 overflow-y-auto">
+      <main className="flex-1 px-4 pb-32 overflow-y-auto">
         {children}
       </main>
 
-      {/* البنر السفلي المحسن - أيقونات سوداء واضحة */}
-      <nav className="fixed bottom-6 left-6 right-6 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] rounded-[2.5rem] border border-stone-100 flex justify-around items-center p-4 z-[100]">
-        
-        {/* الرئيسية */}
-        <NavLink to="/" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
-          <Home size={24} strokeWidth={2.5} />
-        </NavLink>
+      {/* البنر السفلي العائم (Glassmorphism Floating Nav) */}
+      <div className="fixed bottom-8 left-0 right-0 px-6 z-50">
+        <nav className="max-w-md mx-auto bg-stone-900/80 backdrop-blur-2xl rounded-[2.5rem] p-3 shadow-2xl border border-white/10 flex justify-around items-center">
+          
+          {/* الصفحة الرئيسية */}
+          <NavLink to="/" className={({isActive}) => isActive ? "bg-white text-stone-900 p-4 rounded-full shadow-lg" : "text-stone-400 p-4 hover:text-white transition-colors"}>
+            <Home size={24} />
+          </NavLink>
 
-        {/* الخرائط */}
-        <NavLink to="/maps" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
-          <MapIcon size={24} strokeWidth={2.5} />
-        </NavLink>
+          {/* الخرائط */}
+          <NavLink to="/maps" className={({isActive}) => isActive ? "bg-white text-stone-900 p-4 rounded-full shadow-lg" : "text-stone-400 p-4 hover:text-white transition-colors"}>
+            <MapIcon size={24} />
+          </NavLink>
 
-        {/* زر إضافة حدث - مميز في المنتصف */}
-        <NavLink to="/add-event" className="bg-stone-900 text-white p-3 rounded-2xl shadow-lg transform -translate-y-2 active:scale-90 transition-all">
-          <PlusCircle size={24} strokeWidth={2.5} />
-        </NavLink>
+          {/* زر إضافة حدث (في المنتصف بشكل مميز) */}
+          <NavLink to="/add-event" className={({isActive}) => isActive ? "bg-rose-500 text-white p-4 rounded-full shadow-lg" : "bg-white/10 text-white p-4 rounded-full hover:bg-white/20 transition-all"}>
+            <PlusCircle size={28} />
+          </NavLink>
 
-        {/* التنبيهات */}
-        <NavLink to="/notifications" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
-          <Bell size={24} strokeWidth={2.5} />
-        </NavLink>
+          {/* السكتش */}
+          <NavLink to="/sketch" className={({isActive}) => isActive ? "bg-white text-stone-900 p-4 rounded-full shadow-lg" : "text-stone-400 p-4 hover:text-white transition-colors"}>
+            <PenTool size={24} />
+          </NavLink>
 
-        {/* البروفايل */}
-        <NavLink to="/profile" className={({isActive}) => isActive ? "text-stone-900 scale-110" : "text-stone-300"}>
-          <User size={24} strokeWidth={2.5} />
-        </NavLink>
+          {/* التنبيهات */}
+          <NavLink to="/notifications" className={({isActive}) => isActive ? "bg-white text-stone-900 p-4 rounded-full shadow-lg" : "text-stone-400 p-4 hover:text-white transition-colors"}>
+            <Bell size={24} />
+          </NavLink>
 
-        {/* زر الخروج السريع بلون أحمر خفيف */}
-        <button onClick={handleLogout} className="text-rose-300 hover:text-rose-500">
-          <LogOut size={24} strokeWidth={2.5} />
-        </button>
-
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 };
