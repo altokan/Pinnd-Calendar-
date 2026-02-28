@@ -6,7 +6,7 @@ import {
 import { 
   ChevronLeft, ChevronRight, Plus, Camera, 
   X, Save, Loader2, MapPin, Clock, Trash2, Edit3, 
-  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star, FileText, Bell, BellRing, Calendar as CalendarIcon, Info
+  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star, FileText, Bell, BellRing, Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
@@ -37,8 +37,8 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [pins, setPins] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false); // مودال المعاينة
-  const [selectedPin, setSelectedPin] = useState<any>(null); // الحدث المختار للمعاينة
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedPin, setSelectedPin] = useState<any>(null);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
@@ -58,6 +58,7 @@ export default function CalendarPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // جلب البيانات مع التزامن اللحظي
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
@@ -89,7 +90,7 @@ export default function CalendarPage() {
     setCategory(pin.category || 'other');
     setReminder(pin.reminder || 'none');
     setPreviewUrl(pin.imageUrl || null);
-    setIsPreviewOpen(false); // إغلاق المعاينة عند البدء بالتعديل
+    setIsPreviewOpen(false);
     setIsModalOpen(true);
   };
 
@@ -99,11 +100,12 @@ export default function CalendarPage() {
     setPreviewUrl(null); setIsModalOpen(false); setLoading(false); setShowReminderMenu(false);
   };
 
+  // دالة الحذف الفورية
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this event?")) return;
     const previousPins = [...pins];
     setPins(pins.filter(p => p.id !== id));
-    setIsPreviewOpen(false); // إغلاق المعاينة إذا تم الحذف منها
+    setIsPreviewOpen(false);
 
     try {
       await deleteDoc(doc(db, 'pins', id));
@@ -114,6 +116,7 @@ export default function CalendarPage() {
     }
   };
 
+  // دالة الإضافة الفورية (Optimistic Update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title) return toast.error('Title is required');
@@ -132,14 +135,26 @@ export default function CalendarPage() {
         title, time, location, notes, category, reminder,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       };
 
+      // الحل الفوري للإضافة أو التعديل في الواجهة قبل السيرفر
+      const tempId = editingId || Date.now().toString();
+      const newPin = { id: tempId, ...pinData, userId: user.uid };
+      
+      if (!editingId) {
+        setPins(prev => [newPin, ...prev]);
+      } else {
+        setPins(prev => prev.map(p => p.id === editingId ? { ...p, ...pinData } : p));
+      }
+
+      // المزامنة مع Firebase في الخلفية
       if (editingId) {
-        await updateDoc(doc(db, 'pins', editingId), pinData);
+        await updateDoc(doc(db, 'pins', editingId), { ...pinData, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
       }
+
       toast.success('Success!', { id: toastId });
       resetForm();
     } catch (error: any) {
@@ -188,7 +203,7 @@ export default function CalendarPage() {
                 <span className={cn("inline-flex w-9 h-9 items-center justify-center rounded-xl text-sm font-bold mb-4", isToday(day) ? "bg-stone-900 text-white shadow-lg" : "text-stone-800 border border-stone-100")}>{format(day, 'd')}</span>
                 <div className="flex flex-col gap-1.5">
                   {dayPins.slice(0, 2).map((pin) => (
-                    <div key={pin.id} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-lg border border-stone-50 shadow-sm overflow-hidden">
+                    <div key={pin.id} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-lg border border-stone-50 shadow-sm overflow-hidden animate-in fade-in zoom-in-95">
                        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", CATEGORIES.find(c => c.id === pin.category)?.color)} />
                        <span className="text-[8px] font-bold truncate uppercase text-stone-500">{pin.title}</span>
                     </div>
@@ -222,7 +237,7 @@ export default function CalendarPage() {
                            {pin.reminder !== 'none' && <Bell size={12} className="text-amber-500" />}
                         </div>
                         {pin.notes && <p className="text-xs text-stone-400 mt-1 italic line-clamp-1">{pin.notes}</p>}
-                        {pin.location && <p className="text-[11px] font-bold text-blue-500 flex items-center gap-1 mt-1"><MapPin size={12} /> {pin.location}</p>}
+                        {pin.location && <p className="text-[11px] font-bold text-blue-500 flex items-center gap-1 mt-1 truncate"><MapPin size={12} /> {pin.location}</p>}
                       </div>
                       {pin.imageUrl && <img src={pin.imageUrl} className="w-14 h-14 object-cover rounded-2xl" />}
                     </div>
@@ -239,12 +254,11 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Preview Modal (مودال المعاينة المطلوب) */}
+      {/* Preview Modal */}
       <AnimatePresence>
         {isPreviewOpen && selectedPin && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-lg">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-3xl border-4 border-white">
-              {/* Image Header */}
               <div className="h-64 relative bg-stone-100">
                 {selectedPin.imageUrl ? (
                   <img src={selectedPin.imageUrl} className="w-full h-full object-cover" />
@@ -300,7 +314,7 @@ export default function CalendarPage() {
                       <span className="text-[10px] font-black uppercase truncate">{selectedPin.location}</span>
                     </div>
                     <div className="h-40 w-full rounded-[2rem] overflow-hidden grayscale border-2 border-stone-50">
-                      <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedPin.location)}&t=&z=14&ie=UTF8&iwloc=&output=embed`} />
+                      <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedPin.location)}&output=embed`} />
                     </div>
                   </div>
                 )}
@@ -310,7 +324,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit Modal (لم يتم تغيير شكله إطلاقاً كما طلبت) */}
+      {/* Add/Edit Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
@@ -365,7 +379,7 @@ export default function CalendarPage() {
 
                 {location && (
                   <div className="h-32 w-full rounded-2xl overflow-hidden border-2 border-stone-100 grayscale hover:grayscale-0 transition-all">
-                    <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`} />
+                    <iframe width="100%" height="100%" frameBorder="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(location)}&output=embed`} />
                   </div>
                 )}
 
@@ -379,7 +393,7 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="flex gap-4 items-center">
-                   <label className="flex-1 flex items-center justify-center gap-3 p-4 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200 hover:bg-stone-100">
+                   <label className="flex-1 flex items-center justify-center gap-3 p-4 bg-stone-50 rounded-2xl cursor-pointer border-2 border-dashed border-stone-200 hover:bg-stone-100 transition-all">
                       <input type="file" onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) { setImageFile(file); setPreviewUrl(URL.createObjectURL(file)); }
