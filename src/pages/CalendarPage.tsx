@@ -17,7 +17,6 @@ import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 
-// تعريف الفئات بالألوان والأيقونات
 const CATEGORIES = [
   { id: 'work', icon: Briefcase, label: 'Work', color: 'bg-blue-500' },
   { id: 'doctor', icon: HeartPulse, label: 'Doctor', color: 'bg-red-500' },
@@ -36,7 +35,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
 
-  // حقول النموذج
+  // Form State
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('12:00');
@@ -46,7 +45,6 @@ export default function CalendarPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reminder, setReminder] = useState(true);
 
-  // جلب البيانات من فايربيس بشكل حي (Real-time)
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -55,8 +53,9 @@ export default function CalendarPage() {
       orderBy('createdAt', 'desc')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedPins = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPins(fetchedPins);
+      setPins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Firestore Listen Error:", error);
     });
     return () => unsubscribe();
   }, [user]);
@@ -68,7 +67,6 @@ export default function CalendarPage() {
     end: endOfWeek(monthEnd),
   });
 
-  // تصفية أحداث اليوم المختار وعرضها في التايم لاين
   const selectedDayPins = pins
     .filter(p => p.date === format(selectedDate, 'yyyy-MM-dd'))
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
@@ -90,20 +88,26 @@ export default function CalendarPage() {
     setImageFile(null);
     setPreviewUrl(null);
     setIsAddModalOpen(false);
+    setLoading(false); // تأكيد إغلاق وضع التحميل
   };
 
   const handleAddPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title) return toast.error('Please enter a title');
 
+    setLoading(true); // ابدأ التحميل
     try {
-      setLoading(true);
       let imageUrl = '';
 
       if (imageFile) {
-        const imageRef = ref(storage, `pins/${user.uid}/${Date.now()}_${imageFile.name}`);
+        console.log("Attempting to upload image...");
+        // استخدام مسار أبسط لتجنب مشاكل الأذونات
+        const imagePath = `images/${user.uid}/${Date.now()}_${imageFile.name}`;
+        const imageRef = ref(storage, imagePath);
+        
         const uploadResult = await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(uploadResult.ref);
+        console.log("Image uploaded successfully:", imageUrl);
       }
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -116,35 +120,34 @@ export default function CalendarPage() {
         location,
         category,
         reminder,
-        imageUrl, // حفظ رابط الصورة الصحيح
+        imageUrl,
         date: dateStr,
         createdAt: serverTimestamp(),
       });
 
       toast.success('Event Saved Successfully');
       resetForm();
-      setIsTimelineOpen(true); // لفتح التايم لاين تلقائياً بعد الحفظ
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to save event');
-    } finally {
-      setLoading(false);
+      setIsTimelineOpen(true);
+    } catch (error: any) {
+      console.error("Critical Error during save:", error);
+      toast.error(`Error: ${error.message}`);
+      setLoading(false); // توقف عن التحميل في حال الخطأ
     }
   };
 
   const handleDeletePin = async (id: string) => {
-    if(!window.confirm("Are you sure you want to delete this event?")) return;
+    if(!window.confirm("Delete this event?")) return;
     try {
       await deleteDoc(doc(db, 'pins', id));
-      toast.success('Event deleted');
+      toast.success('Deleted');
     } catch (error) {
-      toast.error('Failed to delete');
+      toast.error('Error deleting');
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-700">
-      {/* رأس الصفحة (Month & Navigation) */}
+    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-500">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
           <h2 className="text-5xl font-serif italic text-stone-900 tracking-tighter">{format(currentDate, 'MMMM')}</h2>
@@ -158,7 +161,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* جدول التقويم الرئيسي */}
+      {/* Grid */}
       <div className="bg-white rounded-[3rem] overflow-hidden border-stone-200 border-2 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50/50">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -201,7 +204,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* لوحة الجدول الزمني المنزلقة (Timeline Panel) */}
+      {/* Timeline Slide-up */}
       <AnimatePresence>
         {isTimelineOpen && (
           <>
@@ -225,9 +228,9 @@ export default function CalendarPage() {
                   </div>
                   <button 
                     onClick={() => { setIsAddModalOpen(true); }}
-                    className="p-5 bg-stone-900 text-white rounded-3xl hover:bg-black transition-all shadow-xl active:scale-95 flex items-center gap-2"
+                    className="p-5 bg-stone-900 text-white rounded-3xl hover:bg-black transition-all shadow-xl active:scale-95"
                   >
-                    <Plus size={24} /> <span className="text-xs font-black uppercase pr-2">Add</span>
+                    <Plus size={24} />
                   </button>
                 </div>
 
@@ -262,7 +265,6 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* عرض الصورة إذا وجدت */}
                           {pin.imageUrl && (
                             <div className="relative w-16 h-16 shrink-0">
                                 <img src={pin.imageUrl} className="w-full h-full object-cover rounded-[1.5rem] border-4 border-white shadow-md" alt="" />
@@ -290,7 +292,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* نافذة إضافة حدث (Add Pin Modal) */}
+      {/* Add Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-md">
@@ -312,11 +314,11 @@ export default function CalendarPage() {
                  />
                  
                  <div className="flex flex-wrap items-center gap-4 text-stone-700">
-                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 focus-within:border-stone-900 flex-1">
+                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 flex-1">
                       <Clock size={18} className="text-stone-400" />
                       <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-black focus:ring-0 outline-none w-full text-stone-900" />
                     </div>
-                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 focus-within:border-stone-900 flex-[2]">
+                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 flex-[2]">
                       <MapPin size={18} className="text-stone-400" />
                       <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location..." className="bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none w-full text-stone-900 placeholder:text-stone-300" />
                     </div>
