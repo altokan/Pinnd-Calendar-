@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 
-// تم إصلاح الاستيراد هنا بإضافة AnimatePresence
+// ✅ التعديل هنا: أضفنا AnimatePresence بجانب motion
 import { motion, AnimatePresence } from 'framer-motion'; 
 import { ChevronRight, X, Loader2 } from 'lucide-react';
 
@@ -58,7 +58,7 @@ export default function App() {
   useEffect(() => {
     listenForegroundNotifications();
 
-    // ✅ Fetch Onboarding Config (LTR/English Ready)
+    // ✅ جلب إعدادات Onboarding
     const unsubConfig = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
       if (snap.exists()) {
         const configData = snap.data();
@@ -113,62 +113,52 @@ export default function App() {
           <NotificationBanner />
           <Toaster position="top-center" toastOptions={{ className: 'rounded-2xl font-sans text-sm' }} />
 
-          {/* Optimized English Onboarding Section */}
+          {/* 🌟 Onboarding Section - English & LTR */}
           <AnimatePresence>
             {showOnboarding && dynamicSlides.length > 0 && (
               <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center font-sans"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 text-center"
                 dir="ltr"
               >
-                <button 
-                  onClick={handleCompleteOnboarding} 
-                  className="absolute top-8 right-8 text-stone-300 hover:text-stone-900 transition-colors p-2"
-                >
+                <button onClick={handleCompleteOnboarding} className="absolute top-8 right-8 text-stone-300 hover:text-stone-900">
                   <X size={32}/>
                 </button>
                 
                 <motion.div 
                   key={onboardStep}
-                  initial={{ x: 50, opacity: 0 }} 
-                  animate={{ x: 0, opacity: 1 }} 
-                  exit={{ x: -50, opacity: 0 }}
-                  className="w-full max-w-sm space-y-8"
+                  initial={{ x: 50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -50, opacity: 0 }}
+                  className="max-w-md w-full space-y-10"
                 >
-                  <div className="w-full aspect-square bg-stone-50 rounded-[3rem] overflow-hidden shadow-2xl flex items-center justify-center border-4 border-white mx-auto">
+                  <div className="w-full aspect-square bg-stone-50 rounded-[4rem] overflow-hidden shadow-2xl flex items-center justify-center border-8 border-white">
                     <img 
                        src={dynamicSlides[onboardStep].img} 
                        alt="Feature" 
                        className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="space-y-4 px-2">
+                  <div className="space-y-4 px-4 text-center">
                     <h2 className="text-3xl font-black text-stone-900 leading-tight">
-                      {dynamicSlides[onboardStep].title}
+                        {dynamicSlides[onboardStep].title}
                     </h2>
-                    <p className="text-stone-400 text-base font-medium leading-relaxed">
-                      {dynamicSlides[onboardStep].desc}
+                    <p className="text-stone-400 text-lg leading-relaxed">
+                        {dynamicSlides[onboardStep].desc}
                     </p>
                   </div>
                 </motion.div>
 
-                <div className="absolute bottom-12 w-full max-w-sm px-8 flex flex-col items-center gap-8">
-                  <div className="flex gap-2">
+                <div className="absolute bottom-12 w-full max-w-md px-10 flex flex-col items-center gap-8">
+                  <div className="flex gap-3">
                     {dynamicSlides.map((_, i) => (
-                      <div 
-                        key={i} 
-                        className={`h-1.5 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-8 bg-stone-900' : 'w-2 bg-stone-100'}`} 
-                      />
+                      <div key={i} className={`h-2 rounded-full transition-all duration-500 ${i === onboardStep ? 'w-10 bg-stone-900' : 'w-2 bg-stone-100'}`} />
                     ))}
                   </div>
 
                   <button 
                     onClick={() => onboardStep < dynamicSlides.length - 1 ? setOnboardStep(s => s + 1) : handleCompleteOnboarding()}
-                    className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 font-black text-lg"
+                    className="w-full bg-stone-900 text-white py-5 rounded-[2rem] shadow-2xl flex items-center justify-center gap-3 font-black text-lg active:scale-95 transition-all"
                   >
-                    <span>{onboardStep === dynamicSlides.length - 1 ? "Get Started" : "Continue"}</span>
+                    <span>{onboardStep === dynamicSlides.length - 1 ? "Start Now" : "Continue"}</span>
                     <ChevronRight size={24} />
                   </button>
                 </div>
@@ -181,6 +171,7 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             
+            {/* All Protected Routes */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
             <Route path="/contact" element={<ProtectedRoute><Layout><ContactPage /></Layout></ProtectedRoute>} />
