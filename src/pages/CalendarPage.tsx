@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, 
-  isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek 
+  isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek, parseISO 
 } from 'date-fns';
 import { 
   ChevronLeft, ChevronRight, Plus, Image as ImageIcon, 
-  X, Save, Loader2, MapPin, Clock, Bell, 
+  X, Save, Loader2, MapPin, Clock, Bell, Trash2,
   Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -30,9 +30,11 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [pins, setPins] = useState<any[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
 
+  // Form State
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('12:00');
@@ -62,17 +64,13 @@ export default function CalendarPage() {
     end: endOfWeek(monthEnd),
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
+  const selectedDayPins = pins
+    .filter(p => p.date === format(selectedDate, 'yyyy-MM-dd'))
+    .sort((a, b) => a.time.localeCompare(b.time));
 
   const handleAddPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedDate || !title) return toast.error('Please enter a title');
+    if (!user || !title) return toast.error('Please enter a title');
 
     try {
       setLoading(true);
@@ -97,13 +95,21 @@ export default function CalendarPage() {
         createdAt: serverTimestamp(),
       });
 
-      toast.success('Event Pinned Successfully');
+      toast.success('Event Saved');
       resetForm();
-    } catch (error: any) {
-      console.error(error);
-      toast.error('Failed to save pin');
+    } catch (error) {
+      toast.error('Failed to save');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePin = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'pins', id));
+      toast.success('Event deleted');
+    } catch (error) {
+      toast.error('Failed to delete');
     }
   };
 
@@ -119,33 +125,26 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 animate-in fade-in duration-1000">
+    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
-          <motion.h2 
-            initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-            className="text-5xl font-serif italic text-stone-900 tracking-tighter"
-          >
-            {format(currentDate, 'MMMM')}
-          </motion.h2>
-          <p className="text-stone-500 font-bold tracking-[0.3em] uppercase text-[10px]">
-            Timeline / {format(currentDate, 'yyyy')}
-          </p>
+          <h2 className="text-5xl font-serif italic text-stone-900">{format(currentDate, 'MMMM')}</h2>
+          <p className="text-stone-500 font-black tracking-widest uppercase text-[10px]">Year of {format(currentDate, 'yyyy')}</p>
         </div>
 
-        <div className="flex items-center gap-3 glass p-2 rounded-2xl shadow-sm border-stone-300 border">
-          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-stone-200 rounded-xl transition-all"><ChevronLeft size={20}/></button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest text-stone-700">Today</button>
-          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-stone-200 rounded-xl transition-all"><ChevronRight size={20}/></button>
+        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-md p-2 rounded-2xl border-stone-200 border shadow-sm">
+          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-stone-100 rounded-xl transition-all"><ChevronLeft size={20}/></button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest">Today</button>
+          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-stone-100 rounded-xl transition-all"><ChevronRight size={20}/></button>
         </div>
       </div>
 
       {/* Grid */}
-      <div className="glass rounded-[3rem] overflow-hidden border-stone-200 border-2 shadow-2xl">
-        <div className="grid grid-cols-7 border-b border-stone-200 bg-white/50">
+      <div className="bg-white rounded-[3rem] overflow-hidden border-stone-200 border-2 shadow-xl relative z-10">
+        <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50/50">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-5 text-center text-[10px] font-black uppercase tracking-widest text-stone-500">{day}</div>
+            <div key={day} className="py-5 text-center text-[10px] font-black uppercase tracking-widest text-stone-400">{day}</div>
           ))}
         </div>
         
@@ -155,120 +154,180 @@ export default function CalendarPage() {
             const isCurrentMonth = isSameDay(startOfMonth(day), monthStart);
 
             return (
-              <motion.div 
-                whileHover={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+              <div 
                 key={idx}
-                onClick={() => { setSelectedDate(day); setIsAddModalOpen(true); }}
+                onClick={() => { setSelectedDate(day); setIsTimelineOpen(true); }}
                 className={cn(
-                  "min-h-[150px] p-4 border-r border-b border-stone-200 transition-all cursor-pointer relative group",
+                  "min-h-[140px] p-4 border-r border-b border-stone-100 transition-all cursor-pointer relative group",
                   !isCurrentMonth && "opacity-20",
+                  isSameDay(day, selectedDate) && "bg-stone-50/80",
                   idx % 7 === 6 && "border-r-0"
                 )}
               >
                 <span className={cn(
-                  "inline-flex w-9 h-9 items-center justify-center rounded-2xl text-sm font-bold mb-3 transition-all",
-                  isToday(day) ? "bg-stone-900 text-white shadow-lg rotate-3" : "text-stone-800 group-hover:bg-white border border-stone-100"
+                  "inline-flex w-9 h-9 items-center justify-center rounded-2xl text-sm font-bold mb-3",
+                  isToday(day) ? "bg-stone-900 text-white shadow-lg" : "text-stone-800"
                 )}>
                   {format(day, 'd')}
                 </span>
 
-                <div className="space-y-2">
-                  {dayPins.slice(0, 3).map((pin, i) => {
-                    const CatIcon = CATEGORIES.find(c => c.id === pin.category)?.icon || Star;
-                    return (
-                      <div key={i} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-xl border border-stone-200 shadow-sm overflow-hidden">
-                         <CatIcon size={12} className="shrink-0 text-stone-600" />
-                         <p className="text-[10px] font-bold truncate leading-none text-stone-800">{pin.title}</p>
-                      </div>
-                    );
+                <div className="flex flex-wrap gap-1">
+                  {dayPins.slice(0, 4).map((pin, i) => {
+                    const Cat = CATEGORIES.find(c => c.id === pin.category);
+                    return <div key={i} className={cn("w-2 h-2 rounded-full", Cat?.color || "bg-stone-400")} />;
                   })}
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Modern Add Modal */}
+      {/* Slide-up Timeline Panel */}
       <AnimatePresence>
-        {isAddModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-3xl relative border-stone-200 border-2">
-              <button onClick={resetForm} className="absolute top-8 right-8 p-3 hover:bg-stone-100 rounded-full transition-all text-stone-500 hover:text-black border border-stone-100"><X size={20}/></button>
+        {isTimelineOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsTimelineOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            />
+            <motion.div 
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[3rem] shadow-2xl z-50 max-h-[80vh] overflow-y-auto border-t-2 border-stone-100"
+            >
+              <div className="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mt-6 mb-8" />
               
-              <div className="mb-8">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-500 mb-2">Create New Event</p>
-                <h3 className="text-3xl font-serif italic text-stone-900">{selectedDate && format(selectedDate, 'EEEE, MMM do')}</h3>
-              </div>
-              
-              <form onSubmit={handleAddPin} className="space-y-6">
-                <div className="space-y-4">
-                  {/* تحسين وضوح العنوان */}
-                  <input 
-                    required 
-                    value={title} 
-                    onChange={e => setTitle(e.target.value)} 
-                    placeholder="Event Title..." 
-                    className="w-full text-2xl font-serif italic placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent outline-none text-stone-900" 
-                  />
-                  
-                  <div className="flex flex-wrap items-center gap-4 text-stone-600 border-b border-stone-200 pb-4">
-                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200">
-                      <Clock size={16} className="text-stone-500" />
-                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none text-stone-800" />
-                    </div>
-                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200 flex-1">
-                      <MapPin size={16} className="text-stone-500" />
-                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location..." className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-stone-800 placeholder:text-stone-400" />
-                    </div>
+              <div className="max-w-3xl mx-auto px-8 pb-20">
+                <div className="flex items-center justify-between mb-10">
+                  <div>
+                    <h3 className="text-3xl font-serif italic text-stone-900">{format(selectedDate, 'EEEE, MMM do')}</h3>
+                    <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-1">Events for today</p>
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">Category</label>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.map((cat) => {
-                      const Icon = cat.icon;
-                      return (
-                        <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn(
-                          "flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all",
-                          category === cat.id ? "bg-stone-900 text-white border-stone-900 shadow-lg scale-105" : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
-                        )}>
-                          <Icon size={14} />
-                          <span className="text-xs font-bold">{cat.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 py-4 border-y border-stone-200">
-                  <label className="flex items-center gap-3 px-6 py-3 bg-stone-900 text-white rounded-2xl cursor-pointer hover:bg-black transition-all border border-stone-800 shadow-md">
-                    <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
-                    {previewUrl ? <img src={previewUrl} className="h-6 w-6 object-cover rounded-md border border-white/20" /> : <ImageIcon size={20} />}
-                    <span className="text-xs font-bold">Add Photo</span>
-                  </label>
-                  
-                  <button type="button" onClick={() => setReminder(!reminder)} className={cn(
-                    "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition-all border-2",
-                    reminder ? "bg-amber-50 text-amber-700 border-amber-200 shadow-sm" : "bg-stone-100 text-stone-500 border-stone-200"
-                  )}>
-                    <Bell size={18} className={reminder ? "text-amber-500" : "text-stone-400"} /> 
-                    {reminder ? 'Reminder On' : 'No Reminder'}
+                  <button 
+                    onClick={() => { setIsTimelineOpen(false); setIsAddModalOpen(true); }}
+                    className="p-4 bg-stone-900 text-white rounded-2xl hover:bg-black transition-all shadow-lg"
+                  >
+                    <Plus size={24} />
                   </button>
                 </div>
 
-                <textarea 
-                  value={notes} 
-                  onChange={e => setNotes(e.target.value)} 
-                  placeholder="Additional notes..." 
-                  className="w-full text-sm text-stone-700 placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent outline-none resize-none h-24" 
-                />
+                <div className="space-y-4">
+                  {selectedDayPins.length > 0 ? (
+                    selectedDayPins.map((pin) => {
+                      const Cat = CATEGORIES.find(c => c.id === pin.category);
+                      const Icon = Cat?.icon || Star;
+                      return (
+                        <motion.div 
+                          layout key={pin.id}
+                          className="flex items-center gap-6 p-5 bg-stone-50 rounded-[2rem] border border-stone-200 group"
+                        >
+                          <div className="text-center min-w-[60px]">
+                            <p className="text-sm font-black text-stone-900">{pin.time}</p>
+                            <div className={cn("w-1 h-8 mx-auto my-1 rounded-full", Cat?.color || "bg-stone-200")} />
+                          </div>
 
-                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-[2rem] font-black shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3 active:scale-95 border-2 border-stone-800">
-                  {loading ? <Loader2 className="animate-spin" size={20}/> : <><Save size={20}/> <span>Save Event</span></>}
-                </button>
-              </form>
+                          <div className="p-3 bg-white rounded-2xl border border-stone-100 shadow-sm">
+                            <Icon size={20} className="text-stone-600" />
+                          </div>
+
+                          <div className="flex-1">
+                            <h4 className="font-bold text-stone-900">{pin.title}</h4>
+                            <div className="flex items-center gap-3 mt-1">
+                              {pin.location && (
+                                <span className="flex items-center gap-1 text-[10px] text-stone-400 font-bold">
+                                  <MapPin size={10} /> {pin.location}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">
+                                • {Cat?.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          {pin.imageUrl && (
+                            <img src={pin.imageUrl} className="w-14 h-14 object-cover rounded-2xl border-2 border-white shadow-sm" />
+                          )}
+
+                          <button onClick={() => handleDeletePin(pin.id)} className="p-3 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                            <Trash2 size={18} />
+                          </button>
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-20 text-center space-y-4 bg-stone-50 rounded-[3rem] border-2 border-dashed border-stone-200">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+                        <Star size={24} className="text-stone-200" />
+                      </div>
+                      <p className="text-stone-400 font-serif italic text-lg">No events planned yet...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Add Pin (بقي كما هو مع تعديلات بسيطة للوضوح) */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-3xl relative border-stone-200 border-2 overflow-hidden">
+               {/* كود الفورم الذي قمنا بتطويره في الخطوة السابقة */}
+               <button onClick={resetForm} className="absolute top-8 right-8 p-3 hover:bg-stone-100 rounded-full transition-all text-stone-500 border border-stone-100"><X size={20}/></button>
+              
+               <div className="mb-8">
+                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-500 mb-2">Adding New Event</p>
+                 <h3 className="text-3xl font-serif italic text-stone-900">{format(selectedDate, 'MMMM do')}</h3>
+               </div>
+
+               <form onSubmit={handleAddPin} className="space-y-6">
+                 <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="What's the plan?" className="w-full text-2xl font-serif italic placeholder:text-stone-200 border-none focus:ring-0 p-0 bg-transparent outline-none text-stone-900" />
+                 
+                 <div className="flex flex-wrap items-center gap-4 text-stone-600 border-b border-stone-200 pb-6">
+                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200">
+                      <Clock size={16} />
+                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200 flex-1">
+                      <MapPin size={16} />
+                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location name..." className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full" />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-3 gap-2">
+                    {CATEGORIES.map(cat => (
+                      <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn(
+                        "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                        category === cat.id ? "bg-stone-900 border-stone-900 text-white" : "bg-white border-stone-100 text-stone-400 hover:border-stone-200"
+                      )}>
+                        <cat.icon size={18} />
+                        <span className="text-[9px] font-black uppercase tracking-tighter">{cat.label}</span>
+                      </button>
+                    ))}
+                 </div>
+
+                 <div className="flex items-center justify-between gap-4">
+                   <label className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-stone-100 text-stone-600 rounded-2xl cursor-pointer hover:bg-stone-200 transition-all border-2 border-stone-200">
+                     <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
+                     {previewUrl ? <img src={previewUrl} className="h-6 w-6 object-cover rounded-lg" /> : <ImageIcon size={20} />}
+                     <span className="text-xs font-bold">Add Photo</span>
+                   </label>
+                   <button type="button" onClick={() => setReminder(!reminder)} className={cn(
+                    "px-6 py-4 rounded-2xl font-bold text-xs border-2 transition-all",
+                    reminder ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-stone-100 text-stone-400 border-stone-200"
+                  )}>
+                    <Bell size={18} />
+                  </button>
+                 </div>
+
+                 <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-[2rem] font-black shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3">
+                   {loading ? <Loader2 className="animate-spin" size={20}/> : <span>Save Event</span>}
+                 </button>
+               </form>
             </motion.div>
           </motion.div>
         )}
