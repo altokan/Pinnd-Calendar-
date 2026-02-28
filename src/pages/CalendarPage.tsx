@@ -16,7 +16,6 @@ import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 
-// فئات الأحداث مع الأيقونات الخاصة بها
 const CATEGORIES = [
   { id: 'work', icon: Briefcase, label: 'Work', color: 'bg-blue-500' },
   { id: 'doctor', icon: HeartPulse, label: 'Doctor', color: 'bg-red-500' },
@@ -34,7 +33,6 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Form State المطور
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('12:00');
@@ -131,23 +129,23 @@ export default function CalendarPage() {
           >
             {format(currentDate, 'MMMM')}
           </motion.h2>
-          <p className="text-stone-400 font-bold tracking-[0.3em] uppercase text-[10px]">
+          <p className="text-stone-500 font-bold tracking-[0.3em] uppercase text-[10px]">
             Timeline / {format(currentDate, 'yyyy')}
           </p>
         </div>
 
-        <div className="flex items-center gap-3 glass p-2 rounded-2xl shadow-sm border-white/50">
-          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronLeft size={20}/></button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest">Today</button>
-          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronRight size={20}/></button>
+        <div className="flex items-center gap-3 glass p-2 rounded-2xl shadow-sm border-stone-300 border">
+          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-stone-200 rounded-xl transition-all"><ChevronLeft size={20}/></button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest text-stone-700">Today</button>
+          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-stone-200 rounded-xl transition-all"><ChevronRight size={20}/></button>
         </div>
       </div>
 
       {/* Grid */}
-      <div className="glass rounded-[3rem] overflow-hidden border-white/40 shadow-2xl">
-        <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30">
+      <div className="glass rounded-[3rem] overflow-hidden border-stone-200 border-2 shadow-2xl">
+        <div className="grid grid-cols-7 border-b border-stone-200 bg-white/50">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-5 text-center text-[10px] font-black uppercase tracking-widest text-stone-400">{day}</div>
+            <div key={day} className="py-5 text-center text-[10px] font-black uppercase tracking-widest text-stone-500">{day}</div>
           ))}
         </div>
         
@@ -158,18 +156,18 @@ export default function CalendarPage() {
 
             return (
               <motion.div 
-                whileHover={{ backgroundColor: "rgba(255,255,255,0.6)" }}
+                whileHover={{ backgroundColor: "rgba(255,255,255,0.7)" }}
                 key={idx}
                 onClick={() => { setSelectedDate(day); setIsAddModalOpen(true); }}
                 className={cn(
-                  "min-h-[150px] p-4 border-r border-b border-stone-100/50 transition-all cursor-pointer relative group",
+                  "min-h-[150px] p-4 border-r border-b border-stone-200 transition-all cursor-pointer relative group",
                   !isCurrentMonth && "opacity-20",
                   idx % 7 === 6 && "border-r-0"
                 )}
               >
                 <span className={cn(
                   "inline-flex w-9 h-9 items-center justify-center rounded-2xl text-sm font-bold mb-3 transition-all",
-                  isToday(day) ? "bg-black text-white shadow-lg rotate-3" : "text-stone-800 group-hover:bg-white"
+                  isToday(day) ? "bg-stone-900 text-white shadow-lg rotate-3" : "text-stone-800 group-hover:bg-white border border-stone-100"
                 )}>
                   {format(day, 'd')}
                 </span>
@@ -178,13 +176,12 @@ export default function CalendarPage() {
                   {dayPins.slice(0, 3).map((pin, i) => {
                     const CatIcon = CATEGORIES.find(c => c.id === pin.category)?.icon || Star;
                     return (
-                      <div key={i} className="flex items-center gap-2 bg-white/60 p-1.5 rounded-xl border border-white/80 shadow-sm overflow-hidden">
-                         <CatIcon size={12} className="shrink-0 text-stone-400" />
-                         <p className="text-[10px] font-bold truncate leading-none">{pin.title}</p>
+                      <div key={i} className="flex items-center gap-2 bg-white/80 p-1.5 rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+                         <CatIcon size={12} className="shrink-0 text-stone-600" />
+                         <p className="text-[10px] font-bold truncate leading-none text-stone-800">{pin.title}</p>
                       </div>
                     );
                   })}
-                  {dayPins.length > 3 && <p className="text-[9px] font-black text-stone-400 ml-1">+{dayPins.length - 3} more</p>}
                 </div>
               </motion.div>
             );
@@ -196,40 +193,46 @@ export default function CalendarPage() {
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white/90 backdrop-blur-2xl rounded-[3rem] w-full max-w-xl p-10 shadow-3xl relative border border-white">
-              <button onClick={resetForm} className="absolute top-8 right-8 p-3 hover:bg-stone-100 rounded-full transition-all text-stone-400 hover:text-black"><X size={20}/></button>
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-3xl relative border-stone-200 border-2">
+              <button onClick={resetForm} className="absolute top-8 right-8 p-3 hover:bg-stone-100 rounded-full transition-all text-stone-500 hover:text-black border border-stone-100"><X size={20}/></button>
               
               <div className="mb-8">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--primary-color)] mb-2">Create New Event</p>
-                <h3 className="text-3xl font-serif italic">{selectedDate && format(selectedDate, 'EEEE, MMM do')}</h3>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-500 mb-2">Create New Event</p>
+                <h3 className="text-3xl font-serif italic text-stone-900">{selectedDate && format(selectedDate, 'EEEE, MMM do')}</h3>
               </div>
               
               <form onSubmit={handleAddPin} className="space-y-6">
-                {/* Title & Notes */}
                 <div className="space-y-4">
-                  <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Event Title..." className="w-full text-2xl font-serif italic placeholder:text-stone-200 border-none focus:ring-0 p-0 bg-transparent outline-none" />
-                  <div className="flex items-center gap-4 text-stone-400 border-b border-stone-100 pb-4">
-                    <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-full">
-                      <Clock size={14} />
-                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none" />
+                  {/* تحسين وضوح العنوان */}
+                  <input 
+                    required 
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)} 
+                    placeholder="Event Title..." 
+                    className="w-full text-2xl font-serif italic placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent outline-none text-stone-900" 
+                  />
+                  
+                  <div className="flex flex-wrap items-center gap-4 text-stone-600 border-b border-stone-200 pb-4">
+                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200">
+                      <Clock size={16} className="text-stone-500" />
+                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none text-stone-800" />
                     </div>
-                    <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-full flex-1">
-                      <MapPin size={14} />
-                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location..." className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full" />
+                    <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border border-stone-200 flex-1">
+                      <MapPin size={16} className="text-stone-500" />
+                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location..." className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-stone-800 placeholder:text-stone-400" />
                     </div>
                   </div>
                 </div>
 
-                {/* Categories */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">Category</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">Category</label>
                   <div className="flex flex-wrap gap-2">
                     {CATEGORIES.map((cat) => {
                       const Icon = cat.icon;
                       return (
                         <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn(
-                          "flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all",
-                          category === cat.id ? "bg-black text-white border-black shadow-lg scale-105" : "bg-white border-stone-100 text-stone-500 hover:border-stone-300"
+                          "flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all",
+                          category === cat.id ? "bg-stone-900 text-white border-stone-900 shadow-lg scale-105" : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
                         )}>
                           <Icon size={14} />
                           <span className="text-xs font-bold">{cat.label}</span>
@@ -239,26 +242,31 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Media & Reminder */}
-                <div className="flex items-center justify-between gap-4 py-4 border-y border-stone-50">
-                  <label className="flex items-center gap-3 px-5 py-3 bg-stone-900 text-white rounded-2xl cursor-pointer hover:bg-black transition-all">
+                <div className="flex items-center justify-between gap-4 py-4 border-y border-stone-200">
+                  <label className="flex items-center gap-3 px-6 py-3 bg-stone-900 text-white rounded-2xl cursor-pointer hover:bg-black transition-all border border-stone-800 shadow-md">
                     <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
-                    {previewUrl ? <img src={previewUrl} className="h-5 w-5 object-cover rounded-md" /> : <ImageIcon size={18} />}
-                    <span className="text-xs font-bold">Add Visual</span>
+                    {previewUrl ? <img src={previewUrl} className="h-6 w-6 object-cover rounded-md border border-white/20" /> : <ImageIcon size={20} />}
+                    <span className="text-xs font-bold">Add Photo</span>
                   </label>
                   
                   <button type="button" onClick={() => setReminder(!reminder)} className={cn(
-                    "flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs transition-all",
-                    reminder ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-stone-50 text-stone-400 border border-stone-100"
+                    "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs transition-all border-2",
+                    reminder ? "bg-amber-50 text-amber-700 border-amber-200 shadow-sm" : "bg-stone-100 text-stone-500 border-stone-200"
                   )}>
-                    <Bell size={16} /> {reminder ? 'Reminder On' : 'No Reminder'}
+                    <Bell size={18} className={reminder ? "text-amber-500" : "text-stone-400"} /> 
+                    {reminder ? 'Reminder On' : 'No Reminder'}
                   </button>
                 </div>
 
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Write a note..." className="w-full text-sm text-stone-500 placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent outline-none resize-none h-20" />
+                <textarea 
+                  value={notes} 
+                  onChange={e => setNotes(e.target.value)} 
+                  placeholder="Additional notes..." 
+                  className="w-full text-sm text-stone-700 placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent outline-none resize-none h-24" 
+                />
 
-                <button disabled={loading} type="submit" className="w-full py-5 bg-[var(--primary-color)] text-white rounded-[1.5rem] font-black shadow-2xl hover:opacity-90 transition-all flex items-center justify-center gap-3">
-                  {loading ? <Loader2 className="animate-spin" size={20}/> : <><Save size={20}/> <span>Pin Event</span></>}
+                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-[2rem] font-black shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3 active:scale-95 border-2 border-stone-800">
+                  {loading ? <Loader2 className="animate-spin" size={20}/> : <><Save size={20}/> <span>Save Event</span></>}
                 </button>
               </form>
             </motion.div>
