@@ -6,7 +6,8 @@ import {
 import { 
   ChevronLeft, ChevronRight, Plus, Image as ImageIcon, 
   X, Save, Loader2, MapPin, Clock, Bell, Trash2,
-  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star
+  Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
@@ -44,7 +45,6 @@ export default function CalendarPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reminder, setReminder] = useState(true);
 
-  // Fetching Data
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -58,7 +58,6 @@ export default function CalendarPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Calendar Logic
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
   const calendarDays = eachDayOfInterval({
@@ -68,9 +67,8 @@ export default function CalendarPage() {
 
   const selectedDayPins = pins
     .filter(p => p.date === format(selectedDate, 'yyyy-MM-dd'))
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
-  // Handlers
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -120,7 +118,6 @@ export default function CalendarPage() {
       toast.success('Event Saved');
       resetForm();
     } catch (error) {
-      console.error(error);
       toast.error('Failed to save');
     } finally {
       setLoading(false);
@@ -128,17 +125,17 @@ export default function CalendarPage() {
   };
 
   const handleDeletePin = async (id: string) => {
-    if(!window.confirm("Are you sure?")) return;
+    if(!window.confirm("Delete this event?")) return;
     try {
       await deleteDoc(doc(db, 'pins', id));
-      toast.success('Event deleted');
+      toast.success('Deleted');
     } catch (error) {
-      toast.error('Failed to delete');
+      toast.error('Error deleting');
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-700">
+    <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
@@ -153,7 +150,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
+      {/* Grid */}
       <div className="bg-white rounded-[3rem] overflow-hidden border-stone-200 border-2 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50/50">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -187,7 +184,7 @@ export default function CalendarPage() {
                 <div className="flex flex-wrap gap-1">
                   {dayPins.slice(0, 4).map((pin, i) => {
                     const Cat = CATEGORIES.find(c => c.id === pin.category);
-                    return <div key={i} className={cn("w-2 h-2 rounded-full", Cat?.color || "bg-stone-400")} />;
+                    return <div key={i} className={cn("w-2 h-2 rounded-full", Cat?.color || "bg-stone-400")} title={pin.title} />;
                   })}
                 </div>
               </div>
@@ -196,7 +193,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Slide-up Timeline Panel */}
+      {/* Timeline Slide-up */}
       <AnimatePresence>
         {isTimelineOpen && (
           <>
@@ -236,32 +233,27 @@ export default function CalendarPage() {
                           layout key={pin.id}
                           className="flex items-center gap-6 p-6 bg-stone-50 rounded-[2.5rem] border-2 border-stone-100 group relative"
                         >
-                          <div className="text-center min-w-[70px] border-r border-stone-200 pr-4">
-                            <p className="text-sm font-black text-stone-900 leading-none">{pin.time}</p>
-                            <p className="text-[9px] font-bold text-stone-400 uppercase mt-2 tracking-tighter">Time</p>
+                          <div className="text-center min-w-[70px] border-r border-stone-200 pr-4 text-stone-900 font-black">
+                            {pin.time}
                           </div>
 
-                          <div className="p-4 bg-white rounded-2xl border border-stone-200 shadow-sm shadow-stone-100">
+                          <div className="p-4 bg-white rounded-2xl border border-stone-200">
                             <Icon size={22} className="text-stone-700" />
                           </div>
 
                           <div className="flex-1">
-                            <h4 className="text-lg font-bold text-stone-900 leading-tight">{pin.title}</h4>
-                            <div className="flex items-center gap-4 mt-2">
-                              {pin.location && (
-                                <span className="flex items-center gap-1.5 text-[11px] text-stone-500 font-bold">
-                                  <MapPin size={12} className="text-stone-400" /> {pin.location}
-                                </span>
-                              )}
-                              <span className="text-[10px] text-stone-400 font-black uppercase tracking-widest">• {Cat?.label}</span>
+                            <h4 className="text-lg font-bold text-stone-900">{pin.title}</h4>
+                            <div className="flex items-center gap-4 mt-1 text-stone-400 text-[11px] font-bold">
+                              {pin.location && <span className="flex items-center gap-1"><MapPin size={12}/> {pin.location}</span>}
+                              <span className="uppercase tracking-widest">• {Cat?.label}</span>
                             </div>
                           </div>
 
                           {pin.imageUrl && (
-                            <img src={pin.imageUrl} className="w-16 h-16 object-cover rounded-[1.5rem] border-4 border-white shadow-md" alt="" />
+                            <img src={pin.imageUrl} className="w-16 h-16 object-cover rounded-[1.5rem] border-4 border-white shadow-md" />
                           )}
 
-                          <button onClick={() => handleDeletePin(pin.id)} className="p-3 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100">
+                          <button onClick={() => handleDeletePin(pin.id)} className="p-3 text-stone-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100">
                             <Trash2 size={20} />
                           </button>
                         </motion.div>
@@ -269,7 +261,7 @@ export default function CalendarPage() {
                     })
                   ) : (
                     <div className="py-24 text-center space-y-6 bg-stone-50/50 rounded-[3.5rem] border-2 border-dashed border-stone-200">
-                      <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-stone-100">
+                      <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto border border-stone-100">
                         <CalendarIcon size={32} className="text-stone-200" />
                       </div>
                       <p className="text-stone-400 font-serif italic text-xl">Quiet day... No events yet.</p>
@@ -282,7 +274,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add Modal */}
+      {/* Add Pin Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md">
@@ -295,31 +287,23 @@ export default function CalendarPage() {
                </div>
 
                <form onSubmit={handleAddPin} className="space-y-8">
-                 <div className="space-y-2">
-                    <input 
-                      required 
-                      value={title} 
-                      onChange={e => setTitle(e.target.value)} 
-                      placeholder="Title of your event..." 
-                      className="w-full text-3xl font-serif italic placeholder:text-stone-200 border-none focus:ring-0 p-0 bg-transparent outline-none text-stone-900" 
-                    />
-                 </div>
+                  <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Title of your event..." className="w-full text-3xl font-serif italic placeholder:text-stone-200 border-none focus:ring-0 p-0 bg-transparent outline-none text-stone-900" />
                  
                  <div className="flex flex-wrap items-center gap-4 text-stone-700">
-                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 focus-within:border-stone-900 transition-all flex-1 min-w-[140px]">
+                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 flex-1">
                       <Clock size={18} className="text-stone-400" />
-                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-black focus:ring-0 outline-none w-full" />
+                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-black focus:ring-0 outline-none w-full text-stone-900" />
                     </div>
-                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 focus-within:border-stone-900 transition-all flex-[2] min-w-[200px]">
+                    <div className="flex items-center gap-3 bg-stone-50 px-5 py-3 rounded-2xl border-2 border-stone-100 flex-[2]">
                       <MapPin size={18} className="text-stone-400" />
-                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Where is it?" className="bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none w-full placeholder:text-stone-300" />
+                      <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Where is it?" className="bg-transparent border-none p-0 text-sm font-bold focus:ring-0 outline-none w-full text-stone-900" />
                     </div>
                  </div>
 
                  <div className="grid grid-cols-3 gap-3">
                     {CATEGORIES.map(cat => (
                       <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn(
-                        "flex flex-col items-center gap-3 p-4 rounded-3xl border-2 transition-all active:scale-95",
+                        "flex flex-col items-center gap-3 p-4 rounded-3xl border-2 transition-all",
                         category === cat.id ? "bg-stone-900 border-stone-900 text-white shadow-xl" : "bg-white border-stone-100 text-stone-400 hover:border-stone-200"
                       )}>
                         <cat.icon size={20} />
@@ -336,14 +320,14 @@ export default function CalendarPage() {
                    </label>
                    
                    <button type="button" onClick={() => setReminder(!reminder)} className={cn(
-                    "p-4 rounded-3xl font-bold border-2 transition-all active:scale-95",
-                    reminder ? "bg-amber-50 text-amber-600 border-amber-200 shadow-inner" : "bg-stone-50 text-stone-300 border-stone-100 opacity-50"
+                    "p-4 rounded-3xl font-bold border-2 transition-all",
+                    reminder ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-stone-50 text-stone-300 border-stone-100"
                   )}>
                     <Bell size={24} />
                   </button>
                  </div>
 
-                 <button disabled={loading} type="submit" className="w-full py-6 bg-stone-900 text-white rounded-[2.5rem] font-black shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-4 active:scale-95 border-b-4 border-stone-800">
+                 <button disabled={loading} type="submit" className="w-full py-6 bg-stone-900 text-white rounded-[2.5rem] font-black shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-4">
                    {loading ? <Loader2 className="animate-spin" size={24}/> : <><Save size={24}/> <span>Confirm & Pin</span></>}
                  </button>
                </form>
