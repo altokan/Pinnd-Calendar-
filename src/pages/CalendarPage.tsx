@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Image as ImageIcon, 
   X, Save, Loader2, MapPin, Clock, Bell, Trash2,
   Briefcase, HeartPulse, Plane, PartyPopper, Dumbbell, Star,
-  Calendar as CalendarIcon, ExternalLink, Edit3
+  Calendar as CalendarIcon, ExternalLink, Edit3, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../services/firebase';
@@ -32,6 +32,7 @@ export default function CalendarPage() {
   const [pins, setPins] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false); // خيار نافذة الخريطة
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,6 +57,10 @@ export default function CalendarPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // السماح بملفات حتى 6 ميجا
+      if (file.size > 6 * 1024 * 1024) {
+        return toast.error("Image is too large (Max 6MB)");
+      }
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
     }
@@ -75,7 +80,7 @@ export default function CalendarPage() {
     setEditingId(null);
     setTitle(''); setTime('12:00'); setLocation('');
     setCategory('other'); setImageFile(null); setPreviewUrl(null);
-    setIsModalOpen(false); setLoading(false);
+    setIsModalOpen(false); setLoading(false); setShowMapPicker(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,11 +88,13 @@ export default function CalendarPage() {
     if (!user || !title) return toast.error('Please enter a title');
 
     setLoading(true);
+    const toastId = toast.loading(editingId ? "Updating..." : "Pinning...");
+
     try {
       let finalImageUrl = previewUrl || '';
 
       if (imageFile) {
-        const imageRef = ref(storage, `pins/${user.uid}/${Date.now()}_${imageFile.name}`);
+        const imageRef = ref(storage, `pins/${user.uid}/${Date.now()}`);
         const uploadResult = await uploadBytes(imageRef, imageFile);
         finalImageUrl = await getDownloadURL(uploadResult.ref);
       }
@@ -101,25 +108,17 @@ export default function CalendarPage() {
 
       if (editingId) {
         await updateDoc(doc(db, 'pins', editingId), pinData);
-        toast.success('Updated successfully');
+        toast.success('Updated successfully', { id: toastId });
       } else {
-        await addDoc(collection(db, 'pins'), { 
-          ...pinData, 
-          userId: user.uid, 
-          createdAt: serverTimestamp() 
-        });
-        toast.success('Pinned successfully');
+        await addDoc(collection(db, 'pins'), { ...pinData, userId: user.uid, createdAt: serverTimestamp() });
+        toast.success('Pinned successfully', { id: toastId });
       }
       resetForm();
     } catch (error: any) {
-      toast.error('Error: ' + error.message);
+      toast.error('Error: ' + error.message, { id: toastId });
     } finally {
       setLoading(false);
     }
-  };
-
-  const openInMaps = (loc: string) => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`, '_blank');
   };
 
   const calendarDays = eachDayOfInterval({
@@ -131,7 +130,7 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 animate-in fade-in duration-700">
-      {/* Header - Glassmorphism Style */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
           <h2 className="text-6xl font-serif italic text-stone-900 tracking-tighter">{format(currentDate, 'MMMM')}</h2>
@@ -144,7 +143,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Grid - The Big Calendar */}
+      {/* Grid */}
       <div className="bg-white/70 backdrop-blur-md rounded-[3.5rem] overflow-hidden border-white border-4 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -160,7 +159,7 @@ export default function CalendarPage() {
                 className={cn(
                   "min-h-[150px] p-4 border-r border-b border-stone-50 cursor-pointer hover:bg-white/50 transition-all group",
                   !isCurrentMonth && "opacity-20 pointer-events-none",
-                  isSameDay(day, selectedDate) && "bg-white/80"
+                  isSameDay(day, selectedDate) && "bg-white/80 shadow-inner"
                 )}>
                 <span className={cn(
                   "inline-flex w-10 h-10 items-center justify-center rounded-2xl text-sm font-bold mb-4 transition-transform group-hover:scale-110",
@@ -182,12 +181,12 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Timeline Panel - Bottom Slide Up */}
+      {/* Timeline Panel */}
       <AnimatePresence>
         {isTimelineOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTimelineOpen(false)} className="fixed inset-0 bg-stone-900/10 backdrop-blur-sm z-40" />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 30 }} className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl rounded-t-[4rem] shadow-2xl z-50 max-h-[80vh] overflow-y-auto border-t-4 border-white">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl rounded-t-[4rem] shadow-2xl z-50 max-h-[80vh] overflow-y-auto border-t-4 border-white">
               <div className="w-16 h-1.5 bg-stone-100 rounded-full mx-auto mt-8 mb-4" />
               <div className="max-w-3xl mx-auto px-8 pb-20">
                 <div className="flex items-center justify-between mb-12 sticky top-0 bg-white/10 backdrop-blur-sm py-4 z-10">
@@ -196,39 +195,30 @@ export default function CalendarPage() {
                 </div>
                 
                 <div className="space-y-6">
-                  {selectedDayPins.length > 0 ? selectedDayPins.map((pin) => {
-                    const Cat = CATEGORIES.find(c => c.id === pin.category);
-                    return (
-                      <motion.div layout key={pin.id} className="flex items-center gap-6 p-7 bg-white rounded-[3rem] border-2 border-stone-50 shadow-xl shadow-stone-100/50 group relative overflow-hidden">
-                        <div className="text-center min-w-[80px] border-r-2 border-stone-50 pr-6">
-                          <p className="text-lg font-black text-stone-900 tracking-tighter">{pin.time}</p>
-                          <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest mt-1">Scheduled</p>
+                  {selectedDayPins.length > 0 ? selectedDayPins.map((pin) => (
+                    <motion.div layout key={pin.id} className="flex items-center gap-6 p-7 bg-white rounded-[3rem] border-2 border-stone-50 shadow-xl shadow-stone-100/50 group relative overflow-hidden">
+                      <div className="text-center min-w-[80px] border-r-2 border-stone-50 pr-6">
+                        <p className="text-lg font-black text-stone-900 tracking-tighter">{pin.time}</p>
+                        <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest mt-1">Time</p>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-xl font-bold text-stone-900 mb-2">{pin.title}</h4>
+                        <div className="flex flex-wrap gap-4 items-center">
+                          {pin.location && (
+                            <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pin.location)}`, '_blank')} className="flex items-center gap-2 text-[11px] font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-all">
+                              <MapPin size={12} /> {pin.location}
+                            </button>
+                          )}
                         </div>
-                        <div className="flex-1">
-                          <h4 className="text-xl font-bold text-stone-900 mb-2">{pin.title}</h4>
-                          <div className="flex flex-wrap gap-4 items-center">
-                            {pin.location && (
-                              <button onClick={() => openInMaps(pin.location)} className="flex items-center gap-2 text-[11px] font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-all">
-                                <MapPin size={12} /> {pin.location} <ExternalLink size={10} />
-                              </button>
-                            )}
-                            <span className="text-[10px] font-black text-stone-300 uppercase tracking-[0.2em]">• {Cat?.label}</span>
-                          </div>
-                        </div>
-                        {pin.imageUrl && (
-                          <div className="relative w-20 h-20 shrink-0">
-                            <img src={pin.imageUrl} className="w-full h-full object-cover rounded-[1.5rem] border-4 border-stone-50 shadow-md" alt="" />
-                          </div>
-                        )}
-                        <div className="flex flex-col gap-2">
-                          <button onClick={() => openEditModal(pin)} className="p-3 text-stone-400 hover:text-stone-900 hover:bg-stone-50 rounded-2xl transition-all"><Edit3 size={18} /></button>
-                          <button onClick={async () => await deleteDoc(doc(db, 'pins', pin.id))} className="p-3 text-stone-200 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={18} /></button>
-                        </div>
-                      </motion.div>
-                    );
-                  }) : (
+                      </div>
+                      {pin.imageUrl && <img src={pin.imageUrl} className="w-20 h-20 shrink-0 object-cover rounded-[1.5rem] border-4 border-stone-50 shadow-md" />}
+                      <div className="flex flex-col gap-2">
+                        <button onClick={() => openEditModal(pin)} className="p-3 text-stone-400 hover:text-stone-900 hover:bg-stone-50 rounded-2xl transition-all"><Edit3 size={18} /></button>
+                        <button onClick={async () => { if(confirm("Delete?")) await deleteDoc(doc(db, 'pins', pin.id)); }} className="p-3 text-stone-200 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={18} /></button>
+                      </div>
+                    </motion.div>
+                  )) : (
                     <div className="py-24 text-center bg-stone-50/50 rounded-[3.5rem] border-4 border-dashed border-white">
-                      <CalendarIcon size={48} className="mx-auto text-stone-100 mb-4" />
                       <p className="text-stone-300 font-serif italic text-2xl">A peaceful day ahead...</p>
                     </div>
                   )}
@@ -239,7 +229,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Modal with Interactive Map Selection */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md">
@@ -248,17 +238,41 @@ export default function CalendarPage() {
               <h3 className="text-3xl font-serif italic text-stone-900 mb-10">{editingId ? 'Edit Event' : 'New Schedule'}</h3>
               
               <form onSubmit={handleSubmit} className="space-y-8">
-                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Name your event..." className="w-full text-3xl font-serif italic placeholder:text-stone-100 border-none focus:ring-0 p-0 text-stone-900 outline-none" />
+                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Event Title..." className="w-full text-3xl font-serif italic placeholder:text-stone-100 border-none focus:ring-0 p-0 text-stone-900 outline-none" />
                 
-                <div className="flex gap-4">
-                  <div className="bg-stone-50 p-5 rounded-[2rem] flex-1 flex items-center gap-4 border-2 border-stone-50 focus-within:border-stone-200 transition-all">
+                <div className="flex gap-4 relative">
+                  <div className="bg-stone-50 p-5 rounded-[2rem] flex-1 flex items-center gap-4 border-2 border-stone-50">
                     <Clock size={20} className="text-stone-300" />
                     <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-black w-full outline-none" />
                   </div>
-                  <div className="bg-stone-50 p-5 rounded-[2rem] flex-[2] flex items-center gap-4 border-2 border-stone-50 focus-within:border-stone-200 transition-all">
-                    <MapPin size={20} className="text-stone-300" />
-                    <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Google Maps Location" className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
+                  
+                  {/* Location Input with Map Toggle */}
+                  <div className="bg-stone-50 p-5 rounded-[2rem] flex-[2] flex items-center gap-4 border-2 border-stone-50 relative group">
+                    <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={cn("transition-colors", showMapPicker ? "text-blue-500" : "text-stone-300 hover:text-stone-900")}>
+                      <MapPin size={20} />
+                    </button>
+                    <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Type address or use map" className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
                   </div>
+
+                  {/* Inline Map Picker Window (نافذة الخريطة الصغيرة) */}
+                  <AnimatePresence>
+                    {showMapPicker && (
+                      <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute top-full left-0 right-0 mt-4 bg-white rounded-[2rem] shadow-3xl border-2 border-stone-50 overflow-hidden z-[70] h-64">
+                         <iframe 
+                          title="map-picker"
+                          width="100%" 
+                          height="100%" 
+                          loading="lazy"
+                          src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY_HERE&q=${encodeURIComponent(location || 'Current Location')}`}
+                          className="grayscale hover:grayscale-0 transition-all duration-500"
+                        />
+                        <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur px-4 py-2 rounded-xl text-[10px] font-bold text-stone-500 shadow-sm flex justify-between items-center">
+                          <span>Click marker to select (Requires API Key)</span>
+                          <button type="button" onClick={() => setShowMapPicker(false)} className="text-stone-900">Close</button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -277,7 +291,7 @@ export default function CalendarPage() {
                    <label className="flex-1 flex items-center justify-center gap-4 p-5 bg-stone-50 rounded-[2rem] cursor-pointer border-2 border-dashed border-stone-200 hover:bg-stone-100 transition-all">
                       <input type="file" onChange={handleFileChange} className="hidden" accept="image/*" />
                       {previewUrl ? <img src={previewUrl} className="w-10 h-10 object-cover rounded-xl" /> : <ImageIcon size={24} className="text-stone-300" />}
-                      <span className="text-xs font-black text-stone-500 uppercase tracking-widest">Photo</span>
+                      <span className="text-xs font-black text-stone-500 uppercase tracking-widest text-center">Photo (Max 6MB)</span>
                    </label>
                    <button disabled={loading} type="submit" className="flex-[2] py-6 bg-stone-900 text-white rounded-[2.5rem] font-black shadow-2xl flex items-center justify-center gap-4 hover:bg-black transition-all active:scale-95">
                       {loading ? <Loader2 className="animate-spin" /> : <><Save size={20} /> <span>{editingId ? 'Update Pin' : 'Confirm Pin'}</span></>}
