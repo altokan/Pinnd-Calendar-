@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   Pencil, Eraser, Trash2, ChevronLeft, 
   Type, Image as ImageIcon, Loader2, Move, X,
-  Grab, Plus, Minus, CheckCircle2, Cloud
+  Grab, Plus, Minus, CheckCircle2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
@@ -23,6 +23,7 @@ export default function SketchPage() {
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // التحكم باللوحة
   const scale = useMotionValue(1);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -51,6 +52,7 @@ export default function SketchPage() {
     }
   }, []);
 
+  // الحفظ التلقائي
   const autoSave = useCallback(async () => {
     if (!user) return;
     setSaveStatus('saving');
@@ -106,45 +108,48 @@ export default function SketchPage() {
   return (
     <div className="fixed inset-0 bg-[#f0f0f0] flex flex-col overflow-hidden touch-none select-none">
       
-      {/* البار العلوي المحدث - توزيع متوازن */}
-      <div className="z-[1000] h-20 px-6 flex items-center justify-between bg-white/80 backdrop-blur-2xl border-b shadow-sm">
+      {/* البار العلوي - تم رفع الـ Z-index لضمان الاستجابة */}
+      <div className="absolute top-0 left-0 right-0 z-[9999] h-24 flex items-center justify-center px-8 pointer-events-none">
         
-        {/* اليسار: الرجوع والمعلومات */}
-        <div className="flex items-center gap-4 w-1/4">
-          <button onClick={() => navigate(-1)} className="p-3 rounded-full hover:bg-stone-100 transition-all active:scale-90">
-            <ChevronLeft size={28} />
+        {/* زر الرجوع على اليسار */}
+        <div className="absolute left-8 pointer-events-auto">
+          <button onClick={() => navigate(-1)} className="p-4 bg-white/90 backdrop-blur-md rounded-full shadow-xl border border-stone-200 active:scale-90 transition-all">
+            <ChevronLeft size={28} className="text-stone-800" />
           </button>
-          <div className="hidden sm:block">
-            <h1 className="text-xs font-black uppercase tracking-tighter opacity-30">Project Mode</h1>
-            <div className="flex items-center gap-1.5">
-              {saveStatus === 'saving' ? <Loader2 size={12} className="animate-spin text-blue-500"/> : <CheckCircle2 size={12} className="text-green-500"/>}
-              <span className="text-[10px] font-bold uppercase text-stone-500 tracking-widest">{saveStatus === 'saving' ? 'Syncing' : 'Saved'}</span>
-            </div>
-          </div>
         </div>
 
-        {/* المنتصف: أزرار التحكم الرئيسية (بار علوي ممركز) */}
-        <div className="flex items-center bg-stone-900 rounded-full p-1.5 shadow-2xl scale-110 sm:scale-100">
-           <button onClick={() => setTool('hand')} className={cn("p-3 rounded-full transition-all", tool === 'hand' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Grab size={22}/></button>
-           <button onClick={() => setTool('pencil')} className={cn("p-3 rounded-full transition-all", tool === 'pencil' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Pencil size={22}/></button>
-           <button onClick={() => setTool('select')} className={cn("p-3 rounded-full transition-all", tool === 'select' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Move size={22}/></button>
+        {/* الأدوات الرئيسية في منتصف الصفحة تماماً */}
+        <div className="flex items-center gap-1 bg-stone-900/95 backdrop-blur-2xl rounded-[2.5rem] p-2 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 pointer-events-auto scale-110">
+           
+           {/* أزرار الزوم الجديدة داخل البار */}
+           <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-3.5 text-white/40 hover:text-white transition-all active:scale-75"><ZoomOut size={22}/></button>
            <div className="w-[1px] h-6 bg-white/10 mx-1" />
+
+           <button onClick={() => setTool('hand')} className={cn("p-3.5 rounded-full transition-all", tool === 'hand' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Grab size={22}/></button>
+           <button onClick={() => setTool('pencil')} className={cn("p-3.5 rounded-full transition-all", tool === 'pencil' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Pencil size={22}/></button>
+           <button onClick={() => setTool('select')} className={cn("p-3.5 rounded-full transition-all", tool === 'select' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Move size={22}/></button>
+           
+           <div className="w-[1px] h-6 bg-white/10 mx-1" />
+           
            <button onClick={() => {
              const newId = Date.now().toString();
              setTexts([...texts, { id: newId, text: '', x: 400 - x.get(), y: 400 - y.get(), fontSize: 20, color: '#fff9c4' }]);
              setTool('select'); setSelectedId(newId);
-           }} className="p-3 text-white/40 hover:text-white"><Type size={22}/></button>
-           <button onClick={() => fileInputRef.current?.click()} className="p-3 text-white/40 hover:text-white"><ImageIcon size={22}/></button>
-           <button onClick={() => setTool('eraser')} className={cn("p-3 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-lg" : "text-white/40 hover:text-white")}><Eraser size={22}/></button>
+           }} className="p-3.5 text-white/40 hover:text-white"><Type size={22}/></button>
+           
+           <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-white/40 hover:text-white"><ImageIcon size={22}/></button>
+           <button onClick={() => setTool('eraser')} className={cn("p-3.5 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-lg" : "text-white/40 hover:text-white")}><Eraser size={22}/></button>
+
+           <div className="w-[1px] h-6 bg-white/10 mx-1" />
+           <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-3.5 text-white/40 hover:text-white transition-all active:scale-75"><ZoomIn size={22}/></button>
         </div>
 
-        {/* اليمين: الزوم */}
-        <div className="flex items-center gap-2 w-1/4 justify-end">
-          <div className="flex items-center bg-stone-100 rounded-full p-1 border border-stone-200">
-            <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-2.5 hover:bg-white rounded-full"><Minus size={18}/></button>
-            <span className="text-[10px] font-black w-10 text-center">{Math.round(scale.get() * 100)}%</span>
-            <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-2.5 hover:bg-white rounded-full"><Plus size={18}/></button>
-          </div>
+        {/* حالة الحفظ على اليمين */}
+        <div className="absolute right-8 pointer-events-auto">
+            <div className="bg-white/90 backdrop-blur-md px-5 py-3 rounded-full shadow-lg border border-stone-100 flex items-center gap-2">
+              {saveStatus === 'saving' ? <Loader2 size={14} className="animate-spin text-blue-500"/> : <CheckCircle2 size={14} className="text-green-500"/>}
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-600">{saveStatus === 'saving' ? 'Syncing' : 'Saved'}</span>
+            </div>
         </div>
       </div>
 
@@ -176,10 +181,10 @@ export default function SketchPage() {
                   {selectedId === img.id && (
                     <button 
                       onPointerDown={(e) => { e.stopPropagation(); setImages(images.filter(i => i.id !== img.id)); setSelectedId(null); }}
-                      className="absolute -top-6 -right-6 bg-red-500 text-white rounded-full p-3 shadow-2xl active:scale-150 transition-transform pointer-events-auto"
-                      style={{ zIndex: 9999 }}
+                      className="absolute -top-6 -right-6 bg-red-600 text-white rounded-full p-4 shadow-2xl active:scale-150 transition-transform pointer-events-auto border-4 border-white"
+                      style={{ zIndex: 99999 }}
                     >
-                      <X size={24} strokeWidth={3} />
+                      <X size={26} strokeWidth={4} />
                     </button>
                   )}
                 </div>
@@ -194,24 +199,24 @@ export default function SketchPage() {
                 disableDragging={tool !== 'select'}
                 style={{ pointerEvents: 'auto', zIndex: selectedId === t.id ? 1000 : 20 }}
               >
-                <div onPointerDown={() => setSelectedId(t.id)} className={cn("relative p-8 pt-14 min-w-[220px] shadow-2xl transition-all bg-[#fff9c4]", selectedId === t.id ? "scale-105 ring-4 ring-blue-500/30" : "rotate-1")}>
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                    <div className="w-6 h-6 bg-red-600 rounded-full shadow-lg border-b-4 border-red-900" />
-                    <div className="w-1 h-6 bg-stone-400/50 -mt-1" />
+                <div onPointerDown={() => setSelectedId(t.id)} className={cn("relative p-10 pt-16 min-w-[240px] shadow-2xl transition-all bg-[#fff9c4]", selectedId === t.id ? "scale-105 ring-4 ring-blue-500/30" : "rotate-1")}>
+                  <div className="absolute top-5 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                    <div className="w-7 h-7 bg-red-600 rounded-full shadow-lg border-b-4 border-red-900" />
+                    <div className="w-1.5 h-7 bg-stone-400/50 -mt-1" />
                   </div>
                   <textarea
                     defaultValue={t.text}
-                    className="bg-transparent border-none font-medium text-stone-800 outline-none resize-none text-center w-full text-xl"
-                    placeholder="Note..."
+                    className="bg-transparent border-none font-medium text-stone-800 outline-none resize-none text-center w-full text-2xl"
+                    placeholder="Write..."
                     onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, text: e.target.value} : txt))}
                   />
                   {selectedId === t.id && (
                     <button 
                       onPointerDown={(e) => { e.stopPropagation(); setTexts(texts.filter(txt => txt.id !== t.id)); setSelectedId(null); }}
-                      className="absolute -top-6 -right-6 bg-red-500 text-white rounded-full p-3 shadow-2xl active:scale-150 transition-transform pointer-events-auto"
-                      style={{ zIndex: 9999 }}
+                      className="absolute -top-6 -right-6 bg-red-600 text-white rounded-full p-4 shadow-2xl active:scale-150 transition-transform pointer-events-auto border-4 border-white"
+                      style={{ zIndex: 99999 }}
                     >
-                      <X size={24} strokeWidth={3}/>
+                      <X size={26} strokeWidth={4}/>
                     </button>
                   )}
                 </div>
@@ -226,7 +231,7 @@ export default function SketchPage() {
             const reader = new FileReader();
             reader.onload = (ev) => {
               const newId = Date.now().toString();
-              setImages([...images, { id: newId, url: ev.target?.result as string, x: 200-x.get(), y: 200-y.get(), width: 300, height: 300 }]);
+              setImages([...images, { id: newId, url: ev.target?.result as string, x: 200-x.get(), y: 200-y.get(), width: 400, height: 400 }]);
               setTool('select'); setSelectedId(newId);
             };
             reader.readAsDataURL(file);
@@ -236,3 +241,7 @@ export default function SketchPage() {
     </div>
   );
 }
+
+// أيقونات الزوم اليدوية
+const ZoomIn = ({size}: {size: number}) => <Plus size={size} strokeWidth={3} />;
+const ZoomOut = ({size}: {size: number}) => <Minus size={size} strokeWidth={3} />;
