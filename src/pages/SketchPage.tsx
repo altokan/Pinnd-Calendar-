@@ -2,7 +2,8 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   Pencil, Eraser, Trash2, ChevronLeft, 
   Type, Image as ImageIcon, Loader2, Move, X,
-  Grab, Plus, Minus, CheckCircle2, ZoomIn, ZoomOut
+  Grab, Plus, Minus, CheckCircle2, ZoomIn, ZoomOut,
+  User, ShieldCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Rnd } from 'react-rnd';
@@ -110,27 +111,44 @@ export default function SketchPage() {
   return (
     <div className="relative w-full h-screen bg-[#f0f0f0] overflow-hidden touch-none">
       
-      {/* البنر العلوي المستقل تماماً - حل مشكلة الاستجابة */}
+      {/* البنر العلوي الفائق - الطبقة الأهم */}
       <nav 
         className="fixed top-0 left-0 right-0 h-24 flex items-center justify-between px-8 bg-white/90 backdrop-blur-xl border-b border-stone-200 shadow-lg"
         style={{ zIndex: 1000000, pointerEvents: 'auto' }}
-        onPointerDown={(e) => e.stopPropagation()} // منع انتقال اللمس للوحة الرسم
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        {/* اليسار: رجوع */}
-        <div className="flex-1 flex justify-start">
+        {/* اليسار: زر الرجوع */}
+        <div className="w-1/4 flex justify-start">
           <button 
             onClick={() => navigate(-1)}
-            className="p-4 bg-stone-100 hover:bg-stone-200 rounded-full transition-all active:scale-90"
+            className="p-4 bg-stone-100 hover:bg-stone-200 rounded-full transition-all active:scale-90 shadow-sm"
           >
             <ChevronLeft size={28} className="text-stone-800" />
           </button>
         </div>
 
-        {/* المنتصف: الأدوات والزوم */}
-        <div className="flex items-center gap-1 bg-stone-900 rounded-[2.5rem] p-2 shadow-2xl">
-           <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-4 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomOut size={22}/></button>
+        {/* المنتصف: كونسول الأدوات + الزوم + حالة الحفظ */}
+        <div className="flex items-center gap-1 bg-stone-900 rounded-[2.5rem] p-2 shadow-2xl border border-white/10">
+           {/* حالة الحفظ المدمجة */}
+           <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full mr-1">
+              {saveStatus === 'saving' ? (
+                <Loader2 size={16} className="animate-spin text-blue-400"/>
+              ) : (
+                <CheckCircle2 size={16} className="text-green-400"/>
+              )}
+              <span className="text-[10px] font-bold text-white/70 uppercase tracking-tighter">
+                {saveStatus === 'saving' ? 'Saving' : 'Saved'}
+              </span>
+           </div>
+
+           <div className="w-[1px] h-6 bg-white/10 mx-1" />
+
+           {/* أزرار الزوم */}
+           <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-4 text-white/40 hover:text-white active:scale-75"><ZoomOut size={22}/></button>
+           
            <div className="w-[1px] h-8 bg-white/10 mx-1" />
 
+           {/* أدوات الرسم */}
            <button onClick={() => setTool('hand')} className={cn("p-4 rounded-full transition-all", tool === 'hand' ? "bg-white text-black shadow-md" : "text-white/40 hover:text-white")}><Grab size={22}/></button>
            <button onClick={() => setTool('pencil')} className={cn("p-4 rounded-full transition-all", tool === 'pencil' ? "bg-white text-black shadow-md" : "text-white/40 hover:text-white")}><Pencil size={22}/></button>
            <button onClick={() => setTool('select')} className={cn("p-4 rounded-full transition-all", tool === 'select' ? "bg-white text-black shadow-md" : "text-white/40 hover:text-white")}><Move size={22}/></button>
@@ -147,19 +165,22 @@ export default function SketchPage() {
            <button onClick={() => setTool('eraser')} className={cn("p-4 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-md" : "text-white/40 hover:text-white")}><Eraser size={22}/></button>
 
            <div className="w-[1px] h-8 bg-white/10 mx-1" />
-           <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-4 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomIn size={22}/></button>
+
+           <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-4 text-white/40 hover:text-white active:scale-75"><ZoomIn size={22}/></button>
         </div>
 
-        {/* اليمين: الحفظ التلقائي */}
-        <div className="flex-1 flex justify-end">
-            <div className="bg-stone-100 px-6 py-3 rounded-full border border-stone-200 flex items-center gap-3">
-              {saveStatus === 'saving' ? <Loader2 size={16} className="animate-spin text-blue-500"/> : <CheckCircle2 size={16} className="text-green-500"/>}
-              <span className="text-[11px] font-black uppercase tracking-widest text-stone-600">{saveStatus === 'saving' ? 'Saving' : 'Saved'}</span>
-            </div>
+        {/* اليمين: أيقونات الأدمن والبروفايل */}
+        <div className="w-1/4 flex justify-end gap-3">
+          <button className="p-4 bg-stone-100 hover:bg-stone-200 rounded-full transition-all active:scale-90 border border-stone-200 shadow-sm">
+            <ShieldCheck size={24} className="text-blue-600" />
+          </button>
+          <button className="p-4 bg-stone-100 hover:bg-stone-200 rounded-full transition-all active:scale-90 border border-stone-200 shadow-sm">
+            <User size={24} className="text-stone-700" />
+          </button>
         </div>
       </nav>
 
-      {/* لوحة الرسم */}
+      {/* لوحة الرسم - تبدأ خلف البنر */}
       <div className="w-full h-full pt-24 relative z-0">
         <motion.div 
           className="relative origin-top-left" 
@@ -170,6 +191,7 @@ export default function SketchPage() {
         >
           <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={() => setIsDrawing(false)} className="bg-white shadow-2xl" />
 
+          {/* طبقة الصور والملاحظات */}
           <div className="absolute inset-0 pointer-events-none">
             {images.map((img) => (
               <Rnd
