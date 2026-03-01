@@ -66,7 +66,7 @@ export default function CalendarPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Logic: Dynamic Greetings (Weekend: Sat/Sun)
+  // Logic: Dynamic Greetings
   useEffect(() => {
     const updateGreeting = () => {
       const hour = new Date().getHours();
@@ -84,7 +84,7 @@ export default function CalendarPage() {
     updateGreeting();
   }, []);
 
-  // Firebase Realtime Listener
+  // 1. جلب البيانات اللحظية
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
@@ -95,7 +95,7 @@ export default function CalendarPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Deep Linking from Maps
+  // 2. تحديث: استقبال البيانات من الخريطة (Deep Linking)
   useEffect(() => {
     const dateParam = searchParams.get('date');
     const openEventId = searchParams.get('openEvent');
@@ -104,7 +104,7 @@ export default function CalendarPage() {
       try {
         const parsedDate = parseISO(dateParam);
         setSelectedDate(parsedDate);
-        setCurrentDate(parsedDate); 
+        setCurrentDate(parsedDate); // نقل عرض التقويم للشهر المطلوب
         setIsTimelineOpen(true);
 
         if (openEventId) {
@@ -206,24 +206,24 @@ export default function CalendarPage() {
     <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 mb-16">
-        <div className="space-y-8">
-          {/* Brand Name & Greeting (Separated Block) */}
+        <div className="space-y-10">
+          {/* Brand Name & Greeting (Uniform Serif Italic Style) */}
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-[0.5em] text-black uppercase">
+            <h1 className="text-3xl md:text-4xl font-serif italic text-black tracking-tight">
               Pinned Calendar
             </h1>
             <div className="flex items-center gap-2 pt-2">
-              <span className="text-lg text-stone-400 font-light tracking-tight">
+              <span className="text-xl font-serif italic text-stone-400">
                 {greeting},
               </span>
-              <span className="text-lg text-red-600 font-bold tracking-tight">
+              <span className="text-xl font-serif italic text-red-600">
                 {user?.displayName || user?.email?.split('@')[0] || 'Member'}
               </span>
             </div>
           </div>
 
-          {/* Month Label (Indented/Separated) */}
-          <div className="pt-4">
+          {/* Month Label (Separated Block) */}
+          <div className="pt-2">
             <h2 className="text-7xl md:text-8xl font-serif italic text-stone-900 tracking-tighter leading-none">
               {format(currentDate, 'MMMM')}
             </h2>
@@ -241,7 +241,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
+      {/* Grid */}
       <div className="bg-white/70 backdrop-blur-md rounded-[3.5rem] overflow-hidden border-white border-4 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30 text-center py-6 text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
