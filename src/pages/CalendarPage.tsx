@@ -47,6 +47,9 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Greeting State
+  const [greeting, setGreeting] = useState('');
+
   // Form State
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('12:00');
@@ -62,6 +65,24 @@ export default function CalendarPage() {
 
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // 0. نظام التحيات الإنجليزي (Saturday/Sunday Weekend)
+  useEffect(() => {
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      const day = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+      const isWeekend = day === 0 || day === 6;
+
+      let msg = '';
+      if (hour >= 5 && hour < 12) msg = 'Good Morning';
+      else if (hour >= 12 && hour < 17) msg = 'Good Afternoon';
+      else if (hour >= 17 && hour < 21) msg = 'Good Evening';
+      else msg = 'Good Night';
+
+      setGreeting(isWeekend ? `Happy Weekend, ${msg}` : msg);
+    };
+    updateGreeting();
+  }, []);
 
   // 1. جلب البيانات اللحظية
   useEffect(() => {
@@ -83,7 +104,7 @@ export default function CalendarPage() {
       try {
         const parsedDate = parseISO(dateParam);
         setSelectedDate(parsedDate);
-        setCurrentDate(parsedDate); // نقل عرض التقويم للشهر المطلوب
+        setCurrentDate(parsedDate); 
         setIsTimelineOpen(true);
 
         if (openEventId) {
@@ -183,12 +204,25 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32">
-      {/* Header */}
+      {/* 2. Header المحدث مع التحية واسم البرنامج */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div className="space-y-1">
+          {/* اسم البرنامج الموحد */}
+          <h1 className="text-xl font-black tracking-[0.3em] text-black uppercase mb-2">Pinned Calendar</h1>
+          
           <h2 className="text-6xl font-serif italic text-stone-900 tracking-tighter">{format(currentDate, 'MMMM')}</h2>
-          <p className="text-stone-400 font-black tracking-[0.3em] uppercase text-[10px]">Lifestyle Calendar</p>
+          
+          {/* قسم التحية والاسم تحت اسم البرنامج */}
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-stone-400 font-black tracking-[0.2em] uppercase text-[9px]">
+              {greeting},
+            </span>
+            <span className="text-red-600 font-black tracking-[0.2em] uppercase text-[9px]">
+              {user?.displayName || user?.email?.split('@')[0] || 'Member'}
+            </span>
+          </div>
         </div>
+
         <div className="flex items-center gap-3 bg-white/40 backdrop-blur-xl p-2 rounded-2xl border-white border-2 shadow-xl">
           <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronLeft size={20}/></button>
           <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest text-stone-700">Today</button>
