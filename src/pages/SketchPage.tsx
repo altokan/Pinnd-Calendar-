@@ -10,7 +10,6 @@ import { motion, useMotionValue } from 'framer-motion';
 import { db } from '../services/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
-import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 
 interface TextElement { id: string; text: string; x: number; y: number; fontSize: number; color: string; }
@@ -103,31 +102,37 @@ export default function SketchPage() {
     }
   };
 
-  // وظيفة الضغط المزدوج للتفعيل السريع
   const handleQuickSelect = (id: string) => {
     setTool('select');
     setSelectedId(id);
   };
 
   return (
-    <div className="fixed inset-0 bg-[#f0f0f0] flex flex-col overflow-hidden touch-none select-none">
+    <div className="fixed inset-0 bg-[#e5e5e5] overflow-hidden touch-none select-none">
       
-      {/* البنر العلوي الشامل */}
-      <div className="relative z-[99999] w-full h-24 flex items-center justify-center px-6 bg-white/80 backdrop-blur-xl border-b shadow-md">
+      {/* البنر العلوي - تم فصله بالكامل باستخدام Absolute و Z-Index ضخم */}
+      <div className="absolute top-0 left-0 right-0 h-24 flex items-center justify-between px-8 z-[9999999] pointer-events-none">
         
-        <div className="absolute left-6">
-          <button onClick={() => navigate(-1)} className="p-3 bg-stone-100 hover:bg-stone-200 rounded-full transition-all active:scale-75 pointer-events-auto">
+        {/* اليسار: زر الرجوع */}
+        <div className="pointer-events-auto">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="p-4 bg-white rounded-full shadow-2xl border border-stone-200 active:scale-90 transition-all"
+          >
             <ChevronLeft size={28} className="text-stone-800" />
           </button>
         </div>
 
-        <div className="flex items-center gap-1 bg-stone-900 rounded-[2.5rem] p-2 shadow-2xl pointer-events-auto">
-           <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-3 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomOut size={22}/></button>
+        {/* المنتصف: بنر الأدوات والزوم */}
+        <div className="flex items-center gap-1 bg-stone-900 rounded-[2.5rem] p-2 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/10 pointer-events-auto">
+           {/* زوم أوت */}
+           <button onClick={() => scale.set(Math.max(0.3, scale.get() - 0.2))} className="p-3.5 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomOut size={22}/></button>
            <div className="w-[1px] h-6 bg-white/10 mx-1" />
 
-           <button onClick={() => setTool('hand')} className={cn("p-3.5 rounded-full transition-all", tool === 'hand' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Grab size={22}/></button>
-           <button onClick={() => setTool('pencil')} className={cn("p-3.5 rounded-full transition-all", tool === 'pencil' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Pencil size={22}/></button>
-           <button onClick={() => setTool('select')} className={cn("p-3.5 rounded-full transition-all", tool === 'select' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Move size={22}/></button>
+           {/* الأدوات */}
+           <button onClick={() => setTool('hand')} className={cn("p-4 rounded-full transition-all", tool === 'hand' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Grab size={22}/></button>
+           <button onClick={() => setTool('pencil')} className={cn("p-4 rounded-full transition-all", tool === 'pencil' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Pencil size={22}/></button>
+           <button onClick={() => setTool('select')} className={cn("p-4 rounded-full transition-all", tool === 'select' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white")}><Move size={22}/></button>
            
            <div className="w-[1px] h-6 bg-white/10 mx-1" />
            
@@ -135,24 +140,29 @@ export default function SketchPage() {
              const newId = Date.now().toString();
              setTexts([...texts, { id: newId, text: '', x: 400 - x.get(), y: 400 - y.get(), fontSize: 24, color: '#fff9c4' }]);
              handleQuickSelect(newId);
-           }} className="p-3.5 text-white/40 hover:text-white active:scale-75"><Type size={22}/></button>
+           }} className="p-4 text-white/40 hover:text-white active:scale-75"><Type size={22}/></button>
            
-           <button onClick={() => fileInputRef.current?.click()} className="p-3.5 text-white/40 hover:text-white active:scale-75"><ImageIcon size={22}/></button>
-           <button onClick={() => setTool('eraser')} className={cn("p-3.5 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-lg" : "text-white/40 hover:text-white")}><Eraser size={22}/></button>
+           <button onClick={() => fileInputRef.current?.click()} className="p-4 text-white/40 hover:text-white active:scale-75"><ImageIcon size={22}/></button>
+           <button onClick={() => setTool('eraser')} className={cn("p-4 rounded-full transition-all", tool === 'eraser' ? "bg-red-500 text-white shadow-lg" : "text-white/40 hover:text-white")}><Eraser size={22}/></button>
 
            <div className="w-[1px] h-6 bg-white/10 mx-1" />
-           <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-3 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomIn size={22}/></button>
+           {/* زوم إن */}
+           <button onClick={() => scale.set(Math.min(3, scale.get() + 0.2))} className="p-3.5 text-white/40 hover:text-white active:scale-75 transition-all"><ZoomIn size={22}/></button>
         </div>
 
-        <div className="absolute right-6 flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-full border">
-          {saveStatus === 'saving' ? <Loader2 size={16} className="animate-spin text-blue-500"/> : <CheckCircle2 size={16} className="text-green-500"/>}
-          <span className="text-[10px] font-black uppercase tracking-widest text-stone-600">{saveStatus === 'saving' ? 'Syncing' : 'Saved'}</span>
+        {/* اليمين: حالة الحفظ */}
+        <div className="pointer-events-auto">
+            <div className="bg-white px-6 py-3 rounded-full shadow-2xl border border-stone-100 flex items-center gap-3">
+              {saveStatus === 'saving' ? <Loader2 size={16} className="animate-spin text-blue-500"/> : <CheckCircle2 size={16} className="text-green-500"/>}
+              <span className="text-[11px] font-black uppercase tracking-widest text-stone-600">{saveStatus === 'saving' ? 'Saving' : 'Saved'}</span>
+            </div>
         </div>
       </div>
 
-      <div className="flex-1 relative overflow-hidden bg-[#e5e5e5]">
+      {/* منطقة الرسم - تبدأ من أسفل البنر */}
+      <div className="w-full h-full relative z-10">
         <motion.div 
-          className="relative origin-top-left z-10" 
+          className="relative origin-top-left" 
           style={{ x, y, scale }}
           drag={tool === 'hand'}
           dragConstraints={{ left: -3000, right: 3000, top: -3000, bottom: 3000 }}
@@ -160,6 +170,7 @@ export default function SketchPage() {
         >
           <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={() => setIsDrawing(false)} className="bg-white shadow-2xl" />
 
+          {/* طبقة العناصر القابلة للتحريك */}
           <div className="absolute inset-0 pointer-events-none">
             {images.map((img) => (
               <Rnd
@@ -175,7 +186,7 @@ export default function SketchPage() {
                 <div 
                   onPointerDown={() => setSelectedId(img.id)}
                   onDoubleClick={() => handleQuickSelect(img.id)}
-                  className={cn("relative w-full h-full p-2 group cursor-grab active:cursor-grabbing", selectedId === img.id && "ring-4 ring-blue-500 rounded-xl bg-blue-50/20")}
+                  className={cn("relative w-full h-full p-2 group", selectedId === img.id && "ring-4 ring-blue-500 rounded-xl bg-blue-50/20")}
                 >
                   <img src={img.url} className="w-full h-full object-contain pointer-events-none" />
                   {selectedId === img.id && (
@@ -201,17 +212,16 @@ export default function SketchPage() {
                 <div 
                   onPointerDown={() => setSelectedId(t.id)}
                   onDoubleClick={() => handleQuickSelect(t.id)}
-                  className={cn("relative p-10 pt-20 min-w-[260px] shadow-2xl transition-all bg-[#fff9c4] cursor-grab active:cursor-grabbing", selectedId === t.id ? "scale-105 ring-4 ring-blue-500/30" : "rotate-1")}
+                  className={cn("relative p-10 pt-20 min-w-[260px] shadow-2xl transition-all bg-[#fff9c4]", selectedId === t.id ? "scale-105 ring-4 ring-blue-500/30" : "rotate-1")}
                 >
                   <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center drop-shadow-lg z-50 pointer-events-none">
                     <div className="w-8 h-8 bg-red-600 rounded-full shadow-lg border-b-4 border-red-900" />
                     <div className="w-1.5 h-8 bg-stone-400/60 -mt-1.5" />
                   </div>
-                  
                   <textarea
                     defaultValue={t.text}
-                    className="bg-transparent border-none font-semibold text-stone-800 outline-none resize-none text-center w-full text-2xl placeholder:opacity-30 no-drag"
-                    placeholder="Start typing..."
+                    className="bg-transparent border-none font-semibold text-stone-800 outline-none resize-none text-center w-full text-2xl"
+                    placeholder="Note..."
                     onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? {...txt, text: e.target.value} : txt))}
                   />
                   {selectedId === t.id && (
@@ -227,20 +237,21 @@ export default function SketchPage() {
             ))}
           </div>
         </motion.div>
-
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const newId = Date.now().toString();
-              setImages([...images, { id: newId, url: ev.target?.result as string, x: 200-x.get(), y: 200-y.get(), width: 400, height: 400 }]);
-              handleQuickSelect(newId);
-            };
-            reader.readAsDataURL(file);
-          }
-        }} />
       </div>
+
+      {/* Input الملفات المخفي */}
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const newId = Date.now().toString();
+            setImages([...images, { id: newId, url: ev.target?.result as string, x: 200-x.get(), y: 200-y.get(), width: 400, height: 400 }]);
+            handleQuickSelect(newId);
+          };
+          reader.readAsDataURL(file);
+        }
+      }} />
     </div>
   );
 }
