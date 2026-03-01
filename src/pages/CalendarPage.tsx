@@ -70,6 +70,7 @@ export default function CalendarPage() {
   const [lng, setLng] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('other');
+  const [reminder, setReminder] = useState('none');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -108,13 +109,13 @@ export default function CalendarPage() {
   const openEditModal = (pin: any) => {
     setEditingId(pin.id); setTitle(pin.title); setTime(pin.time);
     setLocation(pin.location || ''); setLat(pin.lat || null); setLng(pin.lng || null);
-    setNotes(pin.notes || ''); setCategory(pin.category || 'other');
+    setNotes(pin.notes || ''); setCategory(pin.category || 'other'); setReminder(pin.reminder || 'none');
     setPreviewUrl(pin.imageUrl || null); setIsPreviewOpen(false); setIsModalOpen(true);
   };
 
   const resetForm = () => {
     setEditingId(null); setTitle(''); setTime('12:00'); setLocation('');
-    setLat(null); setLng(null); setNotes(''); setCategory('other');
+    setLat(null); setLng(null); setNotes(''); setCategory('other'); setReminder('none');
     setImageFile(null); setPreviewUrl(null); setIsModalOpen(false); setLoading(false);
   };
 
@@ -131,7 +132,7 @@ export default function CalendarPage() {
         finalImageUrl = await getDownloadURL(imageRef);
       }
       const pinData = {
-        title, time, location, lat, lng, notes, category,
+        title, time, location, lat, lng, notes, category, reminder,
         imageUrl: finalImageUrl,
         date: format(selectedDate, 'yyyy-MM-dd'),
         updatedAt: new Date(),
@@ -171,7 +172,6 @@ export default function CalendarPage() {
           </h2>
         </div>
 
-        {/* Navigation - Full Width on Mobile */}
         <div className="flex items-center justify-between bg-white/60 backdrop-blur-xl p-1.5 rounded-2xl border-white border-2 shadow-sm w-full md:w-fit">
           <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-3 hover:bg-white rounded-xl transition-all"><ChevronLeft size={20}/></button>
           <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest text-stone-700">Today</button>
@@ -179,7 +179,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar Grid - Mobile Optimized Container */}
+      {/* Calendar Grid */}
       <div className="max-w-6xl mx-auto bg-white rounded-[2rem] md:rounded-[3.5rem] overflow-hidden border-white border-[4px] md:border-[6px] shadow-xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-100 bg-stone-50/50 text-center py-4 text-[9px] md:text-[11px] font-black uppercase tracking-widest text-stone-400">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d}>{d}</div>)}
@@ -211,14 +211,20 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Timeline Panel - Mobile Bottom Sheet Style */}
+      {/* Timeline Panel - Responsive Width */}
       <AnimatePresence>
         {isTimelineOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTimelineOpen(false)} className="fixed inset-0 bg-black/10 backdrop-blur-md z-40" />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] md:rounded-t-[4rem] shadow-2xl z-50 max-h-[85vh] overflow-y-auto">
+            <motion.div 
+              initial={{ y: "100%" }} 
+              animate={{ y: 0 }} 
+              exit={{ y: "100%" }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
+              className="fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-4xl w-full bg-white rounded-t-[2.5rem] md:rounded-t-[4rem] shadow-2xl z-50 max-h-[85vh] overflow-y-auto border-t-4 border-white"
+            >
               <div className="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mt-4 mb-2" />
-              <div className="max-w-2xl mx-auto px-6 pb-12">
+              <div className="px-6 md:px-12 pb-12">
                 <div className="flex items-center justify-between py-6 sticky top-0 bg-white z-10">
                   <h3 className="text-2xl md:text-3xl font-serif italic text-stone-900">{format(selectedDate, 'MMM do, EEEE')}</h3>
                   <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="p-4 bg-stone-900 text-white rounded-2xl shadow-lg"><Plus size={24} /></button>
@@ -243,12 +249,12 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit Modal - Full Screen Mobile */}
+      {/* Add/Edit Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white w-full max-w-xl h-[95vh] md:h-auto md:max-h-[90vh] md:rounded-[3rem] p-6 md:p-10 shadow-3xl overflow-y-auto relative rounded-t-[2.5rem]">
-              <button onClick={resetForm} className="absolute top-6 right-6 p-2 bg-stone-100 rounded-full text-stone-400 hover:text-stone-900"><X size={20}/></button>
+              <button onClick={resetForm} className="absolute top-6 right-6 p-2 bg-stone-100 rounded-full text-stone-400"><X size={20}/></button>
               <form onSubmit={handleSubmit} className="space-y-6 pt-6">
                 <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Event Title" className="text-2xl md:text-3xl font-serif italic border-none focus:ring-0 p-0 text-stone-900 outline-none w-full bg-transparent" />
                 
@@ -257,15 +263,14 @@ export default function CalendarPage() {
                     <Clock size={18} className="text-stone-300" />
                     <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
                   </div>
-                  <div className="relative">
-                    <div className="bg-stone-50 p-4 rounded-2xl flex items-center gap-3 border border-stone-100">
-                      <MapPin size={18} className="text-stone-300" />
-                      <input value={location} onChange={e => handleLocationChange(e.target.value)} placeholder="Location" className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
-                    </div>
+                  <div className="bg-stone-50 p-4 rounded-2xl flex items-center gap-3 border border-stone-100">
+                    <MapPin size={18} className="text-stone-300" />
+                    <input value={location} onChange={e => handleLocationChange(e.target.value)} placeholder="Location" className="bg-transparent border-none p-0 text-sm font-bold w-full outline-none" />
                   </div>
                 </div>
 
-                <div className="h-40 md:h-48 w-full rounded-2xl overflow-hidden border-2 border-stone-50 relative z-0">
+                {/* Map Area */}
+                <div className="h-40 md:h-48 w-full rounded-2xl overflow-hidden border-2 border-stone-50">
                   <MapContainer center={[lat || 24.7136, lng || 46.6753]} zoom={13} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     {lat && lng && <Marker position={[lat, lng]} />}
@@ -273,6 +278,26 @@ export default function CalendarPage() {
                   </MapContainer>
                 </div>
 
+                {/* Notes Input */}
+                <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100">
+                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add some notes..." className="bg-transparent border-none p-0 text-sm font-medium w-full outline-none h-20 resize-none" />
+                </div>
+
+                {/* Reminder Option */}
+                <div className="bg-stone-50 p-4 rounded-2xl flex items-center justify-between border border-stone-100">
+                  <div className="flex items-center gap-3">
+                    <Bell size={18} className="text-stone-400" />
+                    <span className="text-sm font-bold text-stone-600">Reminder</span>
+                  </div>
+                  <select value={reminder} onChange={e => setReminder(e.target.value)} className="bg-transparent text-sm font-black text-stone-900 outline-none border-none focus:ring-0">
+                    <option value="none">None</option>
+                    <option value="at-time">At time</option>
+                    <option value="15-min">15 min before</option>
+                    <option value="1-hour">1 hour before</option>
+                  </select>
+                </div>
+
+                {/* Categories */}
                 <div className="grid grid-cols-3 gap-2">
                   {CATEGORIES.map(cat => (
                     <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={cn("flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all", category === cat.id ? "bg-stone-900 border-stone-900 text-white" : "bg-white border-stone-50 text-stone-300")}>
@@ -282,8 +307,8 @@ export default function CalendarPage() {
                   ))}
                 </div>
 
-                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl">
-                  {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Save Pin'}
+                <button disabled={loading} type="submit" className="w-full py-5 bg-stone-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95">
+                  {loading ? <Loader2 className="animate-spin mx-auto" /> : (editingId ? 'Update Event' : 'Create Event')}
                 </button>
               </form>
             </motion.div>
@@ -291,7 +316,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* Preview Modal - Responsive */}
+      {/* Preview Modal */}
       <AnimatePresence>
         {isPreviewOpen && selectedPin && (
           <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/20 backdrop-blur-md">
@@ -305,13 +330,19 @@ export default function CalendarPage() {
                   <h3 className="text-2xl font-serif italic text-stone-900">{selectedPin.title}</h3>
                   <div className="flex gap-2">
                     <button onClick={() => openEditModal(selectedPin)} className="p-3 bg-stone-50 text-stone-900 rounded-xl"><Edit3 size={18} /></button>
+                    <button onClick={() => handleDelete(selectedPin.id)} className="p-3 bg-rose-50 text-rose-500 rounded-xl"><Trash2 size={18} /></button>
                   </div>
                 </div>
                 <div className="flex gap-4 text-xs font-bold text-stone-500 uppercase">
-                  <div className="flex items-center gap-1"><Clock size={14} /> {pin.time}</div>
-                  {pin.location && <div className="flex items-center gap-1 text-blue-500"><MapPin size={14} /> {pin.location}</div>}
+                  <div className="flex items-center gap-1"><Clock size={14} /> {selectedPin.time}</div>
+                  {selectedPin.location && <div className="flex items-center gap-1 text-blue-500"><MapPin size={14} /> {selectedPin.location}</div>}
                 </div>
                 {selectedPin.notes && <p className="text-sm text-stone-600 bg-stone-50 p-4 rounded-xl leading-relaxed">{selectedPin.notes}</p>}
+                {selectedPin.reminder !== 'none' && (
+                   <div className="flex items-center gap-2 text-[10px] font-black text-stone-400 uppercase">
+                     <Bell size={12} /> Reminder: {selectedPin.reminder}
+                   </div>
+                )}
               </div>
             </motion.div>
           </div>
