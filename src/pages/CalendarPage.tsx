@@ -66,7 +66,7 @@ export default function CalendarPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // 0. نظام التحيات الإنجليزي (Saturday/Sunday Weekend)
+  // Logic: Dynamic Greetings (Weekend: Sat/Sun)
   useEffect(() => {
     const updateGreeting = () => {
       const hour = new Date().getHours();
@@ -84,7 +84,7 @@ export default function CalendarPage() {
     updateGreeting();
   }, []);
 
-  // 1. جلب البيانات اللحظية
+  // Firebase Realtime Listener
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'pins'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
@@ -95,7 +95,7 @@ export default function CalendarPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // 2. تحديث: استقبال البيانات من الخريطة (Deep Linking)
+  // Deep Linking from Maps
   useEffect(() => {
     const dateParam = searchParams.get('date');
     const openEventId = searchParams.get('openEvent');
@@ -204,33 +204,44 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32">
-      {/* 2. Header المحدث مع التحية واسم البرنامج */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-        <div className="space-y-1">
-          {/* اسم البرنامج الموحد */}
-          <h1 className="text-xl font-black tracking-[0.3em] text-black uppercase mb-2">Pinned Calendar</h1>
-          
-          <h2 className="text-6xl font-serif italic text-stone-900 tracking-tighter">{format(currentDate, 'MMMM')}</h2>
-          
-          {/* قسم التحية والاسم تحت اسم البرنامج */}
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-stone-400 font-black tracking-[0.2em] uppercase text-[9px]">
-              {greeting},
-            </span>
-            <span className="text-red-600 font-black tracking-[0.2em] uppercase text-[9px]">
-              {user?.displayName || user?.email?.split('@')[0] || 'Member'}
-            </span>
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 mb-16">
+        <div className="space-y-8">
+          {/* Brand Name & Greeting (Separated Block) */}
+          <div className="space-y-1">
+            <h1 className="text-2xl font-black tracking-[0.5em] text-black uppercase">
+              Pinned Calendar
+            </h1>
+            <div className="flex items-center gap-2 pt-2">
+              <span className="text-lg text-stone-400 font-light tracking-tight">
+                {greeting},
+              </span>
+              <span className="text-lg text-red-600 font-bold tracking-tight">
+                {user?.displayName || user?.email?.split('@')[0] || 'Member'}
+              </span>
+            </div>
+          </div>
+
+          {/* Month Label (Indented/Separated) */}
+          <div className="pt-4">
+            <h2 className="text-7xl md:text-8xl font-serif italic text-stone-900 tracking-tighter leading-none">
+              {format(currentDate, 'MMMM')}
+            </h2>
+            <p className="text-stone-400 font-black tracking-[0.4em] uppercase text-[10px] mt-4 ml-2">
+              Lifestyle Planning
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-white/40 backdrop-blur-xl p-2 rounded-2xl border-white border-2 shadow-xl">
+        {/* Calendar Navigation Controls */}
+        <div className="flex items-center gap-3 bg-white/40 backdrop-blur-xl p-2 rounded-2xl border-white border-2 shadow-xl self-start md:mt-2">
           <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronLeft size={20}/></button>
           <button onClick={() => setCurrentDate(new Date())} className="px-6 text-[11px] font-black uppercase tracking-widest text-stone-700">Today</button>
           <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronRight size={20}/></button>
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Main Grid */}
       <div className="bg-white/70 backdrop-blur-md rounded-[3.5rem] overflow-hidden border-white border-4 shadow-2xl relative z-10">
         <div className="grid grid-cols-7 border-b border-stone-100 bg-white/30 text-center py-6 text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
