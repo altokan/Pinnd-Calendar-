@@ -10,7 +10,7 @@ import { ThemeProvider } from './ThemeContext';
 /* استيراد المكونات الأساسية */
 import Layout from './components/Layout';
 
-/* استيراد الصفحات بناءً على هيكل ملفاتك الجديد */
+/* استيراد الصفحات */
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -18,21 +18,16 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-import BoardPage from './pages/BoardPage'; // تم التعديل هنا لاستيراد الصفحة الجديدة
+import MainBoard from './pages/MainBoard'; // الاسم الجديد هنا
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AddEventPage from './pages/AddEventPage';
 
-/**
- * مكون حماية المسارات (Protected Route)
- * يمنع الوصول للصفحات إلا بعد تسجيل الدخول
- */
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
   children,
   adminOnly = false
 }) => {
   const { user, loading, isAdmin } = useAuth();
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F9F8F6]">
@@ -40,10 +35,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
       </div>
     );
   }
-
   if (!user) return <Navigate to="/login" />;
   if (adminOnly && !isAdmin) return <Navigate to="/" />;
-
   return <>{children}</>;
 };
 
@@ -52,7 +45,6 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <Router>
-          {/* مكون التنبيهات (Toast) */}
           <Toaster 
             position="top-center" 
             toastOptions={{ 
@@ -60,40 +52,22 @@ export default function App() {
               duration: 4000 
             }} 
           />
-
           <Routes>
-            {/* 1. المسارات العامة (بدون تسجيل دخول) */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             
-            {/* 2. المسارات المحمية (تحتاج تسجيل دخول) داخل الـ Layout */}
-            
-            {/* الصفحة الرئيسية (التقويم) */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
-            
-            {/* الخرائط */}
             <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
             
-            {/* صفحة اللوحة الجديدة (تم توجيه رابط /sketch إليها لضمان عمل الأزرار الحالية) */}
-            <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
+            {/* ربط صفحة اللوحة الجديدة بالرابط القديم */}
+            <Route path="/sketch" element={<ProtectedRoute><Layout><MainBoard /></Layout></ProtectedRoute>} />
             
-            {/* الإشعارات */}
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
-            
-            {/* الملف الشخصي */}
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
-            
-            {/* إضافة حدث جديد */}
             <Route path="/add-event" element={<ProtectedRoute><Layout><AddEventPage /></Layout></ProtectedRoute>} />
-            
-            {/* تفاصيل الحدث */}
             <Route path="/event/:id" element={<ProtectedRoute><Layout><EventDetailsPage /></Layout></ProtectedRoute>} />
-            
-            {/* صفحة الإدارة (للمشرفين فقط) */}
             <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
-
-            {/* إعادة توجيه أي مسار غير موجود للرئيسية */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
