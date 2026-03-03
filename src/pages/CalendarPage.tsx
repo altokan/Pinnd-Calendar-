@@ -29,7 +29,6 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   
-  // حالات التعديل والإضافة
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [tempTitle, setTempTitle] = useState('');
   const [tempLocation, setTempLocation] = useState('');
@@ -48,6 +47,19 @@ export default function CalendarPage() {
     return () => unsub();
   }, [userId]);
 
+  // --- إصلاح الخطأ: تعريف دالة رفع الصور ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setTempImage(ev.target?.result as string);
+        toast.success("Image attached!");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleLocationSearch = async (val: string) => {
     setTempLocation(val);
     if (val.length > 3) {
@@ -59,31 +71,38 @@ export default function CalendarPage() {
 
   const saveEvent = async () => {
     if (!tempTitle) return toast.error('Title is required');
+    if (!selectedDay) return;
+    
+    toast.loading("Saving plan...", { id: "saveEv" });
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
     let finalImageUrl = tempImage;
 
-    if (tempImage?.startsWith('data:image')) {
-      const sRef = ref(storage, `events/${userId}/${Date.now()}`);
-      await uploadString(sRef, tempImage, 'data_url');
-      finalImageUrl = await getDownloadURL(sRef);
+    try {
+      if (tempImage?.startsWith('data:image')) {
+        const sRef = ref(storage, `events/${userId}/${Date.now()}`);
+        await uploadString(sRef, tempImage, 'data_url');
+        finalImageUrl = await getDownloadURL(sRef);
+      }
+
+      const newEv = {
+        id: editingEvent?.id || `ev_${Date.now()}`,
+        title: tempTitle,
+        location: tempLocation,
+        date: dateStr,
+        image: finalImageUrl,
+        lat: tempCoords[0],
+        lng: tempCoords[1],
+        time: "12:00"
+      };
+
+      const filtered = events.filter(e => e.id !== (editingEvent?.id || ''));
+      await setDoc(eventDocRef, { events: [...filtered, newEv] }, { merge: true });
+      
+      setEditingEvent(null); setTempTitle(''); setTempImage(null); setTempLocation('');
+      toast.success('Event Saved', { id: "saveEv" });
+    } catch (e) {
+      toast.error("Error saving", { id: "saveEv" });
     }
-
-    const newEv = {
-      id: editingEvent?.id || `ev_${Date.now()}`,
-      title: tempTitle,
-      location: tempLocation,
-      date: dateStr,
-      image: finalImageUrl,
-      lat: tempCoords[0],
-      lng: tempCoords[1],
-      time: "12:00"
-    };
-
-    const filtered = events.filter(e => e.id !== (editingEvent?.id || ''));
-    await setDoc(eventDocRef, { events: [...filtered, newEv] }, { merge: true });
-    
-    setEditingEvent(null); setTempTitle(''); setTempImage(null); setTempLocation('');
-    toast.success('Event Saved');
   };
 
   const daysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
@@ -96,16 +115,14 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
-      {/* Header القديم الأنيق */}
+      {/* Header */}
       <div className="bg-white border-b border-stone-100 px-6 py-5 sticky top-0 z-[100]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><ChevronLeft size={28} /></button>
-          
           <div className="flex bg-stone-100 p-1 rounded-xl">
             <button onClick={() => setViewMode('traditional')} className={cn("px-5 py-1.5 rounded-lg text-xs font-bold transition-all", viewMode === 'traditional' ? "bg-white shadow-sm text-black" : "text-stone-400")}>Calendar</button>
             <button onClick={() => setViewMode('timeline')} className={cn("px-5 py-1.5 rounded-lg text-xs font-bold transition-all", viewMode === 'timeline' ? "bg-white shadow-sm text-black" : "text-stone-400")}>Timeline</button>
           </div>
-
           <button onClick={() => navigate('/map')} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"><MapPin size={24} /></button>
         </div>
       </div>
@@ -113,7 +130,6 @@ export default function CalendarPage() {
       <div className="max-w-5xl mx-auto px-6 pt-10">
         {viewMode === 'traditional' ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            {/* الشهر والسنة */}
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-3xl font-bold text-stone-900 tracking-tight">
                 {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
@@ -124,7 +140,6 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {/* شبكة التقويم القديمة */}
             <div className="grid grid-cols-7 border-t border-l border-stone-100 bg-white rounded-xl overflow-hidden shadow-sm">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="border-r border-b border-stone-100 p-4 text-center text-[10px] font-bold text-stone-400 uppercase tracking-widest">{d}</div>
@@ -132,7 +147,7 @@ export default function CalendarPage() {
               {calendarDays.map((day, i) => {
                 const dayStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const hasEvents = events.some(e => e.date === dayStr);
-                const isToday = day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() && currentDate.getFullYear() === new Date().getFullYear();
+                const isToday = day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth();
 
                 return (
                   <div 
@@ -140,17 +155,13 @@ export default function CalendarPage() {
                     className={cn(
                       "aspect-square border-r border-b border-stone-100 p-2 relative cursor-pointer transition-colors group",
                       day ? "hover:bg-stone-50" : "bg-stone-50/30",
-                      isToday && "bg-blue-50/30" // التعديل: ظل خفيف جداً ليوم اليوم
+                      isToday && "bg-blue-50/30"
                     )}
                   >
                     {day && (
                       <>
                         <span className={cn("text-sm font-medium", isToday ? "text-blue-600 font-bold" : "text-stone-700")}>{day}</span>
-                        {hasEvents && (
-                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5">
-                            <div className="w-1 h-1 bg-blue-500 rounded-full" />
-                          </div>
-                        )}
+                        {hasEvents && <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full" />}
                         {isToday && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_#3b82f6]" />}
                       </>
                     )}
@@ -160,7 +171,6 @@ export default function CalendarPage() {
             </div>
           </motion.div>
         ) : (
-          /* التايم لاين */
           <div className="max-w-xl mx-auto space-y-4">
              {events.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(ev => (
                <div key={ev.id} className="bg-white p-5 rounded-2xl border border-stone-100 flex items-center gap-4 shadow-sm">
@@ -168,7 +178,6 @@ export default function CalendarPage() {
                    <p className="text-[10px] font-bold text-stone-400 uppercase">{new Date(ev.date).toLocaleString('default', {month:'short'})}</p>
                    <p className="text-lg font-bold">{new Date(ev.date).getDate()}</p>
                  </div>
-                 <div className="h-10 w-[1px] bg-stone-100" />
                  <div className="flex-1">
                    <p className="font-bold text-stone-800">{ev.title}</p>
                    <p className="text-xs text-stone-400">{ev.location}</p>
@@ -180,33 +189,30 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* المودال الشامل (أحداث اليوم + إضافة + تعديل + خريطة + صور) */}
       <AnimatePresence>
         {selectedDay && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              {/* Header المودال */}
-              <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-white">
+              <div className="p-6 border-b border-stone-100 flex justify-between items-center">
                 <div>
                   <h3 className="text-xl font-bold text-stone-900">{selectedDay} {currentDate.toLocaleString('default', { month: 'long' })}</h3>
-                  <p className="text-xs text-stone-400 font-medium">Daily Schedule & Plans</p>
+                  <p className="text-xs text-stone-400 font-medium">Daily Schedule</p>
                 </div>
-                <button onClick={() => { setSelectedDay(null); setEditingEvent(null); }} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><X size={20}/></button>
+                <button onClick={() => { setSelectedDay(null); setEditingEvent(null); }} className="p-2 hover:bg-stone-100 rounded-full"><X size={20}/></button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* قائمة الأحداث الحالية */}
                 <div className="space-y-3">
                   {events.filter(e => e.date === `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`).map(ev => (
                     <div key={ev.id} className="group p-4 bg-stone-50 rounded-2xl border border-stone-100 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        {ev.image && <img src={ev.image} className="w-12 h-12 rounded-xl object-cover shadow-sm" />}
+                        {ev.image && <img src={ev.image} className="w-12 h-12 rounded-xl object-cover" />}
                         <div>
                           <p className="font-bold text-stone-800 text-sm">{ev.title}</p>
                           <p className="text-[10px] text-stone-400 flex items-center gap-1"><MapPin size={10}/> {ev.location}</p>
                         </div>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1">
                         <button onClick={() => { setEditingEvent(ev); setTempTitle(ev.title); setTempLocation(ev.location); setTempImage(ev.image); setTempCoords([ev.lat, ev.lng]); }} className="p-2 text-stone-400 hover:text-blue-600"><Edit2 size={16}/></button>
                         <button onClick={() => updateDoc(eventDocRef, { events: arrayRemove(ev) })} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={16}/></button>
                       </div>
@@ -214,25 +220,22 @@ export default function CalendarPage() {
                   ))}
                 </div>
 
-                {/* فورم الإضافة/التعديل */}
                 <div className="pt-4 border-t border-stone-100 space-y-4">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{editingEvent ? 'Edit Plan' : 'Add New Plan'}</p>
-                  
                   <input 
-                    type="text" placeholder="What are you planning?" 
-                    className="w-full p-4 bg-stone-100 rounded-2xl text-sm font-bold outline-none border-2 border-transparent focus:border-blue-100 transition-all"
+                    type="text" placeholder="Plan title..." 
+                    className="w-full p-4 bg-stone-100 rounded-2xl text-sm font-bold outline-none"
                     value={tempTitle} onChange={e => setTempTitle(e.target.value)}
                   />
 
                   <div className="relative">
-                    <MapPin className="absolute left-4 top-4 text-stone-400" size={16} />
                     <input 
-                      type="text" placeholder="Search for a location..." 
-                      className="w-full p-4 pl-12 bg-stone-100 rounded-2xl text-sm outline-none"
+                      type="text" placeholder="Search location..." 
+                      className="w-full p-4 pl-10 bg-stone-100 rounded-2xl text-sm outline-none"
                       value={tempLocation} onChange={e => handleLocationSearch(e.target.value)}
                     />
+                    <MapPin className="absolute left-3 top-4 text-stone-400" size={16} />
                     {suggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl mt-2 z-50 border border-stone-100 overflow-hidden">
+                      <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl z-50 border border-stone-100">
                         {suggestions.map((s, i) => (
                           <div key={i} onClick={() => { setTempLocation(s.display_name); setTempCoords([parseFloat(s.lat), parseFloat(s.lon)]); setSuggestions([]); }} className="p-3 hover:bg-stone-50 text-[10px] cursor-pointer border-b border-stone-50">{s.display_name}</div>
                         ))}
@@ -250,15 +253,15 @@ export default function CalendarPage() {
 
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center border-2 border-dashed border-stone-200 overflow-hidden">
+                      <div className="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center border border-dashed border-stone-300 overflow-hidden">
                         {tempImage ? <img src={tempImage} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-stone-300"/>}
                       </div>
-                      <button onClick={() => fileRef.current?.click()} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
-                        <Upload size={12}/> {tempImage ? 'Change Image' : 'Attach Photo'}
+                      <button onClick={() => fileRef.current?.click()} className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
+                        <Upload size={12}/> Attach Photo
                       </button>
                     </div>
                     <button onClick={saveEvent} className="bg-stone-900 text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all">
-                      {editingEvent ? 'Update Plan' : 'Save Plan'}
+                      Save Plan
                     </button>
                   </div>
                 </div>
