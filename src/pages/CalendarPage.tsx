@@ -116,8 +116,6 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f5f2] px-4 py-4 sm:py-6 pb-40 font-sans text-stone-800 overflow-x-hidden">
-      
-      {/* Header */}
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div className="w-full sm:w-auto flex justify-between items-center sm:block">
           <div>
@@ -156,11 +154,7 @@ export default function CalendarPage() {
                 const dayEvents = getEventsForDay(day);
                 const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
                 return (
-                  <motion.div 
-                    key={day} whileTap={{ scale: 0.9 }}
-                    onClick={() => handleDayClick(day)}
-                    className="flex flex-col items-center justify-center relative py-2"
-                  >
+                  <motion.div key={day} whileTap={{ scale: 0.9 }} onClick={() => handleDayClick(day)} className="flex flex-col items-center justify-center relative py-2">
                     <div className={cn(
                       "w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-xs sm:text-sm font-black transition-all",
                       isToday ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110" : "text-stone-700 hover:bg-stone-50",
@@ -234,13 +228,11 @@ export default function CalendarPage() {
                 <h2 className="text-xl sm:text-2xl font-black">{selectedEvent ? 'Edit Event' : 'New Event'}</h2>
                 <button onClick={() => { setShowAddModal(false); setSelectedEvent(null); }} className="p-2 bg-stone-100 rounded-full"><X size={20}/></button>
               </div>
-
               <div className="space-y-4 pb-6">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Event Name</label>
                   <input placeholder="Ex: Team Meeting" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none text-xs sm:text-sm" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
                 </div>
-                
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Date</label>
@@ -251,7 +243,6 @@ export default function CalendarPage() {
                     <input type="time" className="w-full p-3 sm:p-4 bg-stone-100 rounded-2xl font-bold outline-none text-[10px] sm:text-xs" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between p-3 sm:p-4 bg-stone-50 rounded-2xl">
                   <div className="flex items-center gap-2 font-bold text-[10px] sm:text-xs text-stone-600">
                     {form.alert ? <Bell className="text-blue-500" size={16}/> : <BellOff className="text-stone-300" size={16}/>}
@@ -261,7 +252,6 @@ export default function CalendarPage() {
                     <div className={cn("absolute top-0.5 sm:top-1 w-4 h-4 bg-white rounded-full transition-all", form.alert ? "left-5 sm:left-7" : "left-1")} />
                   </button>
                 </div>
-
                 <div className="relative space-y-1">
                   <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Location Search</label>
                   <div className="relative">
@@ -270,35 +260,27 @@ export default function CalendarPage() {
                     {suggestions.length > 0 && (
                       <div className="absolute bottom-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[1200] border mb-1 overflow-hidden">
                         {suggestions.map((s, i) => (
-                          <div key={i} onClick={() => { 
-                            setForm({...form, location: s.display_name}); 
-                            setCoords([parseFloat(s.lat), parseFloat(s.lon)]); 
-                            setSuggestions([]); 
-                          }} className="p-3 hover:bg-stone-50 text-[9px] sm:text-[10px] cursor-pointer border-b last:border-0">{s.display_name}</div>
+                          <div key={i} onClick={() => { setForm({...form, location: s.display_name}); setCoords([parseFloat(s.lat), parseFloat(s.lon)]); setSuggestions([]); }} className="p-3 hover:bg-stone-50 text-[9px] sm:text-[10px] cursor-pointer border-b last:border-0">{s.display_name}</div>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
-
                 <div className="h-24 sm:h-32 rounded-2xl overflow-hidden border grayscale-[0.3]">
                   <MapContainer center={coords} zoom={13} style={{height:'100%'}} zoomControl={false}>
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <Marker position={coords} /><ChangeView center={coords} />
                   </MapContainer>
                 </div>
-
                 <div className="flex justify-between p-1.5 bg-stone-50 rounded-2xl overflow-x-auto">
                   {EVENT_TYPES.map(t => (
                     <button key={t.id} onClick={() => setForm({...form, type: t.id})} className={cn("p-2 sm:p-3 rounded-xl transition-all flex-shrink-0", form.type === t.id ? "bg-white shadow-sm text-blue-600 scale-105" : "text-stone-400")}><t.icon size={18} /></button>
                   ))}
                 </div>
-
                 <button onClick={() => fileInputRef.current?.click()} className="w-full p-4 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest border-2 border-dashed border-stone-200">
                   <ImageIcon size={16} /> {form.image ? 'Image Attached' : 'Attach Event Photo'}
                 </button>
                 <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
-
                 <button onClick={saveEvent} className="w-full py-4 bg-blue-600 text-white rounded-[1.5rem] font-black shadow-lg shadow-blue-200 active:scale-95 transition-all text-xs sm:text-sm uppercase tracking-tighter">Confirm & Save</button>
               </div>
             </motion.div>
@@ -306,10 +288,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      <button 
-        onClick={() => { setSelectedEvent(null); setForm({title:'', date:'', time:'', location:'', note:'', type:'other', image:'', alert:false}); setShowAddModal(true); }} 
-        className="fixed bottom-28 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all"
-      >
+      <button onClick={() => { setSelectedEvent(null); setForm({title:'', date:'', time:'', location:'', note:'', type:'other', image:'', alert:false}); setShowAddModal(true); }} className="fixed bottom-28 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all">
         <Plus size={24} />
       </button>
     </div>
