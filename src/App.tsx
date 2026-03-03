@@ -13,10 +13,18 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-import BoardPage from './pages/board'; // تأكد أن هذا الملف موجود في src/pages/board.tsx
+import BoardPage from './pages/BoardPage'; // الربط بالملف الجديد الذي أنشأته
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AddEventPage from './pages/AddEventPage';
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly = false }) => {
+  const { user, loading, isAdmin } = useAuth();
+  if (loading) return <div className="flex items-center justify-center min-h-screen bg-[#F9F8F6]"><Loader2 className="animate-spin text-stone-300" size={40} /></div>;
+  if (!user) return <Navigate to="/login" />;
+  if (adminOnly && !isAdmin) return <Navigate to="/" />;
+  return <>{children}</>;
+};
 
 export default function App() {
   return (
@@ -29,7 +37,13 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
+            <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
             <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
+            <Route path="/add-event" element={<ProtectedRoute><Layout><AddEventPage /></Layout></ProtectedRoute>} />
+            <Route path="/event/:id" element={<ProtectedRoute><Layout><EventDetailsPage /></Layout></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
@@ -37,11 +51,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
-const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly = false }) => {
-  const { user, loading, isAdmin } = useAuth();
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" size={40} /></div>;
-  if (!user) return <Navigate to="/login" />;
-  if (adminOnly && !isAdmin) return <Navigate to="/" />;
-  return <>{children}</>;
-};
