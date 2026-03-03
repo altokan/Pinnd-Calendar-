@@ -115,21 +115,21 @@ export default function CalendarPage() {
   if (loading) return <div className="fixed inset-0 bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#f8f5f2] px-4 py-4 sm:py-6 pb-32 font-sans text-stone-800 overflow-x-hidden">
+    <div className="min-h-screen bg-[#f8f5f2] px-4 py-4 sm:py-6 pb-40 font-sans text-stone-800 overflow-x-hidden">
       
       {/* Header */}
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div className="w-full sm:w-auto flex justify-between items-center sm:block">
           <div>
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tighter text-stone-900 capitalize">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-stone-900 capitalize">
               {currentDate.toLocaleString('en-US', { month: 'long' })}
               <span className="text-blue-600 ml-2">{currentDate.getFullYear()}</span>
             </h1>
             <div className="flex gap-2 sm:gap-3 mt-1 items-center">
-              <p className="text-stone-400 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest">Admin Dashboard</p>
+              <p className="text-stone-400 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest">Schedule</p>
               <div className="flex bg-stone-200/50 p-0.5 sm:p-1 rounded-lg">
-                <button onClick={() => setViewMode('grid')} className={cn("p-1 rounded-md transition-all", viewMode === 'grid' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><Grid size={12}/></button>
-                <button onClick={() => setViewMode('timeline')} className={cn("p-1 rounded-md transition-all", viewMode === 'timeline' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><List size={12}/></button>
+                <button onClick={() => setViewMode('grid')} className={cn("p-1.5 rounded-md transition-all", viewMode === 'grid' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><Grid size={14}/></button>
+                <button onClick={() => setViewMode('timeline')} className={cn("p-1.5 rounded-md transition-all", viewMode === 'timeline' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><List size={14}/></button>
               </div>
             </div>
           </div>
@@ -137,39 +137,49 @@ export default function CalendarPage() {
 
         <div className="flex w-full sm:w-auto justify-between sm:justify-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-stone-100">
           <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 hover:bg-stone-50 rounded-xl transition-colors flex-1 sm:flex-none justify-center flex"><ChevronLeft size={18}/></button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-3 sm:px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-tighter hover:bg-stone-50 rounded-xl transition-colors">Today</button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-5 sm:px-6 py-2 text-[10px] sm:text-xs font-black uppercase tracking-tighter hover:bg-stone-50 rounded-xl transition-colors">Today</button>
           <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 hover:bg-stone-50 rounded-xl transition-colors flex-1 sm:flex-none justify-center flex"><ChevronRight size={18}/></button>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto">
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-7 gap-1 sm:gap-3">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-              <div key={d} className="text-center text-[9px] sm:text-[10px] font-black text-stone-300 uppercase mb-1 tracking-widest">{d}</div>
-            ))}
-            {Array(firstDayOfMonth).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
-            {days.map(day => {
-              const dayEvents = getEventsForDay(day);
-              const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
-              return (
-                <motion.div 
-                  key={day} whileTap={{ scale: 0.95 }}
-                  onClick={() => handleDayClick(day)}
-                  className={cn(
-                    "aspect-square bg-white rounded-lg sm:rounded-[1.5rem] p-1 sm:p-2 border transition-all relative cursor-pointer",
-                    isToday ? "border-blue-500 ring-2 sm:ring-4 ring-blue-500/10 shadow-md" : "border-stone-100 shadow-sm"
-                  )}
-                >
-                  <span className={cn("text-[10px] sm:text-sm font-black", isToday ? "text-blue-600" : "text-stone-400")}>{day}</span>
-                  <div className="flex flex-wrap gap-0.5 mt-0.5">
-                    {dayEvents.map(e => (
-                      <div key={e.id} className={cn("w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full", EVENT_TYPES.find(t => t.id === e.type)?.color || 'bg-blue-500')} />
-                    ))}
-                  </div>
-                </motion.div>
-              );
-            })}
+          /* NEW Grid Design - Card Style */
+          <div className="bg-white rounded-[2.5rem] p-4 sm:p-6 shadow-sm border border-stone-100">
+            <div className="grid grid-cols-7 mb-4">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                <div key={d} className="text-center text-[8px] sm:text-[10px] font-black text-stone-300 uppercase tracking-widest">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-y-2">
+              {Array(firstDayOfMonth).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
+              {days.map(day => {
+                const dayEvents = getEventsForDay(day);
+                const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+                return (
+                  <motion.div 
+                    key={day} whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDayClick(day)}
+                    className="flex flex-col items-center justify-center relative py-2"
+                  >
+                    <div className={cn(
+                      "w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-xs sm:text-sm font-black transition-all",
+                      isToday ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110" : "text-stone-700 hover:bg-stone-50",
+                      dayEvents.length > 0 && !isToday ? "bg-stone-100 ring-1 ring-stone-200" : ""
+                    )}>
+                      {day}
+                    </div>
+                    {dayEvents.length > 0 && (
+                      <div className="flex gap-0.5 mt-1">
+                        {dayEvents.slice(0, 3).map((e, idx) => (
+                          <div key={idx} className={cn("w-1 h-1 rounded-full", EVENT_TYPES.find(t => t.id === e.type)?.color || 'bg-blue-500')} />
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <div className="relative border-l-2 border-stone-200 ml-2 sm:ml-4 pl-6 sm:pl-8 space-y-6 py-2">
@@ -189,7 +199,7 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Modals */}
+      {/* Modals - Same logic, responsive view */}
       <AnimatePresence>
         {selectedDayEvents && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[900] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -298,10 +308,10 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* FIXED: Floating Action Button position for mobile banner safety */}
+      {/* MODIFIED: Floating Action Button - Positioned higher for banner safety */}
       <button 
         onClick={() => { setSelectedEvent(null); setForm({title:'', date:'', time:'', location:'', note:'', type:'other', image:'', alert:false}); setShowAddModal(true); }} 
-        className="fixed bottom-24 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all"
+        className="fixed bottom-28 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all"
       >
         <Plus size={24} />
       </button>
