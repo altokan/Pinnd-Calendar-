@@ -1,8 +1,8 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { ReactSketchCanvas, ReactSketchCanvasRef } from 'react-sketch-canvas';
 import { 
   Undo, Redo, Trash2, Download, Eraser, PenTool, 
-  ChevronLeft, Palette, Type, GripHorizontal 
+  ChevronLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -26,27 +26,61 @@ export default function SketchPage() {
 
   return (
     <div className="fixed inset-0 bg-stone-50 flex flex-col overflow-hidden touch-none">
-      {/* Header - متناسق مع شاشة الجوال والايباد */}
-      <div className="h-16 bg-white border-b border-stone-100 flex items-center justify-between px-4 shrink-0 shadow-sm z-20">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate(-1)} 
-            className="p-2 hover:bg-stone-50 rounded-full transition-colors"
-          >
-            <ChevronLeft size={24} className="text-stone-600" />
-          </button>
-          <h1 className="text-xl font-serif italic font-bold text-stone-900">Sketchpad</h1>
-        </div>
-        
-        <div className="flex items-center gap-1 md:gap-3">
-          <button onClick={() => canvasRef.current?.undo()} className="p-2.5 text-stone-400 hover:text-stone-900"><Undo size={20}/></button>
-          <button onClick={() => canvasRef.current?.redo()} className="p-2.5 text-stone-400 hover:text-stone-900"><Redo size={20}/></button>
-          <button onClick={handleExport} className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Download size={20}/></button>
+      {/* Header مع زر الرجوع */}
+      <div className="absolute top-4 left-4 z-50">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="p-2 bg-white/80 backdrop-blur-md rounded-full shadow-sm border border-stone-100 transition-colors"
+        >
+          <ChevronLeft size={24} className="text-stone-600" />
+        </button>
+      </div>
+
+      {/* بنر الإضافات الأسود في منتصف أعلى الصفحة */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-md">
+        <div className="bg-stone-900 shadow-2xl rounded-[2rem] p-2 flex items-center justify-between px-4">
+          {/* الأدوات */}
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => { setEraseMode(false); canvasRef.current?.eraseMode(false); }}
+              className={cn("p-2 rounded-full transition-all", !eraseMode ? "bg-white text-stone-900" : "text-stone-400")}
+            >
+              <PenTool size={18} />
+            </button>
+            <button 
+              onClick={() => { setEraseMode(true); canvasRef.current?.eraseMode(true); }}
+              className={cn("p-2 rounded-full transition-all", eraseMode ? "bg-white text-stone-900" : "text-stone-400")}
+            >
+              <Eraser size={18} />
+            </button>
+          </div>
+
+          {/* الألوان */}
+          <div className="flex items-center gap-1.5">
+            {['#000000', '#EF4444', '#3B82F6', '#10B981'].map((color) => (
+              <button
+                key={color}
+                onClick={() => { setStrokeColor(color); setEraseMode(false); canvasRef.current?.eraseMode(false); }}
+                className={cn(
+                  "w-5 h-5 rounded-full border transition-transform",
+                  strokeColor === color && !eraseMode ? "border-white scale-110" : "border-transparent"
+                )}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
+
+          {/* إجراءات الحفظ والمسح */}
+          <div className="flex items-center gap-1 border-l border-stone-700 pl-2">
+            <button onClick={() => canvasRef.current?.undo()} className="p-1.5 text-stone-400"><Undo size={16}/></button>
+            <button onClick={handleExport} className="p-1.5 text-white"><Download size={16}/></button>
+            <button onClick={() => canvasRef.current?.clearCanvas()} className="p-1.5 text-rose-400"><Trash2 size={16}/></button>
+          </div>
         </div>
       </div>
 
-      {/* Canvas Area - مساحة الرسم */}
-      <div className="flex-1 relative bg-white m-2 md:m-4 rounded-[2rem] overflow-hidden shadow-inner border border-stone-100">
+      {/* مساحة الرسم - ممتدة بالكامل للجوال */}
+      <div className="flex-1 bg-white">
         <ReactSketchCanvas
           ref={canvasRef}
           strokeWidth={strokeWidth}
@@ -57,65 +91,13 @@ export default function SketchPage() {
         />
       </div>
 
-      {/* Toolbar - شريط الأدوات العائم المناسب للمس */}
-      <div className="p-4 pb-8 md:pb-6 flex flex-col items-center gap-4 z-30">
-        <div className="bg-white/80 backdrop-blur-2xl border-2 border-white shadow-2xl rounded-[2.5rem] p-3 flex items-center gap-2 md:gap-6 max-w-full overflow-x-auto no-scrollbar">
-          
-          {/* أدوات الرسم والممحاة */}
-          <div className="flex items-center gap-1 border-r border-stone-100 pr-2">
-            <button 
-              onClick={() => { setEraseMode(false); canvasRef.current?.eraseMode(false); }}
-              className={cn("p-3 rounded-2xl transition-all", !eraseMode ? "bg-stone-900 text-white shadow-lg" : "text-stone-400")}
-            >
-              <PenTool size={20} />
-            </button>
-            <button 
-              onClick={() => { setEraseMode(true); canvasRef.current?.eraseMode(true); }}
-              className={cn("p-3 rounded-2xl transition-all", eraseMode ? "bg-stone-900 text-white shadow-lg" : "text-stone-400")}
-            >
-              <Eraser size={20} />
-            </button>
-          </div>
-
-          {/* لوحة الألوان */}
-          <div className="flex items-center gap-2 px-2">
-            {['#000000', '#EF4444', '#3B82F6', '#10B981', '#F59E0B'].map((color) => (
-              <button
-                key={color}
-                onClick={() => {
-                  setStrokeColor(color);
-                  setEraseMode(false);
-                  canvasRef.current?.eraseMode(false);
-                }}
-                className={cn(
-                  "w-8 h-8 rounded-full border-2 transition-transform active:scale-90",
-                  strokeColor === color && !eraseMode ? "border-stone-900 scale-110 shadow-md" : "border-transparent"
-                )}
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-
-          {/* التحكم في حجم الخط */}
-          <div className="flex items-center gap-3 border-l border-stone-100 pl-4 pr-2">
-             <input 
-               type="range" 
-               min="1" 
-               max="20" 
-               value={strokeWidth} 
-               onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
-               className="w-16 md:w-24 accent-stone-900"
-             />
-          </div>
-
-          {/* زر المسح الكامل */}
-          <button 
-            onClick={() => canvasRef.current?.clearCanvas()}
-            className="p-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition-colors"
-          >
-            <Trash2 size={20} />
-          </button>
-        </div>
+      {/* حجم الخط أسفل الصفحة بشكل خفيف */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-50">
+        <input 
+          type="range" min="1" max="20" value={strokeWidth} 
+          onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
+          className="w-32 accent-stone-900"
+        />
       </div>
     </div>
   );
