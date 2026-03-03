@@ -144,7 +144,7 @@ export default function CalendarPage() {
 
       <div className="max-w-4xl mx-auto">
         {viewMode === 'grid' ? (
-          /* NEW Grid Design - Card Style */
+          /* Grid Design - Card Style */
           <div className="bg-white rounded-[2.5rem] p-4 sm:p-6 shadow-sm border border-stone-100">
             <div className="grid grid-cols-7 mb-4">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
@@ -199,7 +199,7 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Modals - Same logic, responsive view */}
+      {/* Modals */}
       <AnimatePresence>
         {selectedDayEvents && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[900] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -308,7 +308,7 @@ export default function CalendarPage() {
         )}
       </AnimatePresence>
 
-      {/* MODIFIED: Floating Action Button - Positioned higher for banner safety */}
+      {/* Floating Action Button - Lifted for banner safety */}
       <button 
         onClick={() => { setSelectedEvent(null); setForm({title:'', date:'', time:'', location:'', note:'', type:'other', image:'', alert:false}); setShowAddModal(true); }} 
         className="fixed bottom-28 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all"
