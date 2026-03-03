@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save, X } from 'lucide-react';
+import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save, X, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
 import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -16,12 +16,16 @@ export default function BoardPage() {
   const [elements, setElements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null); // حالة الصورة المختارة للعرض
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  // حالات للتقويم
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [targetNote, setTargetNote] = useState<any>(null);
+  const [eventDate, setEventDate] = useState('');
 
   const userId = auth.currentUser?.uid || "guest";
   const boardDocRef = doc(db, "boards", userId);
 
-  // تحميل الخط اليدوي من Google Fonts برمجياً
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap';
@@ -39,14 +43,7 @@ export default function BoardPage() {
 
   const addNote = async () => {
     const id = `note_${Date.now()}`;
-    const newNote = { 
-      id, 
-      type: 'note', 
-      content: '', 
-      x: 50 + Math.random() * 50, 
-      y: 150, 
-      rotate: Math.random() * 4 - 2 
-    };
+    const newNote = { id, type: 'note', content: '', x: 50 + Math.random() * 50, y: 150, rotate: Math.random() * 4 - 2 };
     await updateDoc(boardDocRef, { elements: arrayUnion(newNote) });
   };
 
@@ -78,9 +75,31 @@ export default function BoardPage() {
     const target = e.target;
     target.style.height = 'auto';
     target.style.height = `${target.scrollHeight}px`;
-    
     const updated = elements.map(item => item.id === id ? {...item, content: target.value} : item);
     setDoc(boardDocRef, { elements: updated }, { merge: true });
+  };
+
+  // وظيفة حفظ الحدث في التقويم
+  const saveToCalendar = async () => {
+    if (!eventDate) {
+      toast.error('Please select a date');
+      return;
+    }
+    try {
+      const eventRef = doc(db, "events", userId);
+      const newEvent = {
+        id: `event_${Date.now()}`,
+        title: targetNote.content || "Untitled Note",
+        date: eventDate,
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(eventRef, { events: arrayUnion(newEvent) }, { merge: true });
+      toast.success('Added to Calendar!');
+      setShowCalendarModal(false);
+      setEventDate('');
+    } catch (error) {
+      toast.error('Failed to save event');
+    }
   };
 
   if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
@@ -104,7 +123,6 @@ export default function BoardPage() {
               whileDrag={{ scale: 1.05, zIndex: 100 }}
               className="absolute cursor-grab active:cursor-grabbing p-4"
             >
-              {/* الدبوس الأحمر */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
                 <div className="w-4 h-4 bg-red-600 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.5)] border-b-4 border-red-800 relative">
                   <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent to-white/30 rounded-full" />
@@ -112,7 +130,6 @@ export default function BoardPage() {
                 <div className="w-1 h-1 bg-black/20 rounded-full blur-[1px] mx-auto mt-0.5" />
               </div>
 
-              {/* جسم الورقة أو الصورة */}
               <div className={cn(
                 "relative shadow-2xl transition-all duration-200",
                 el.type === 'note' 
@@ -143,24 +160,21 @@ export default function BoardPage() {
                     src={el.content} 
                     className="w-48 h-auto pointer-events-auto block grayscale-[0.1] cursor-zoom-in" 
                     alt="" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedImage(el.content); // فتح الصورة عند الضغط
-                    }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedImage(el.content); }}
                   />
                 )}
 
-                {/* أزرار التحكم الدائمة */}
                 <div className="absolute top-2 right-2 flex flex-col gap-2 z-[90]">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); removeElement(el); }} 
-                    className="bg-red-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-red-700 active:scale-90 transition-colors"
-                  >
+                  <button onClick={(e) => { e.stopPropagation(); removeElement(el); }} className="bg-red-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-red-700 active:scale-90 transition-colors">
                     <Trash2 size={14} />
                   </button>
                   {el.type === 'note' && (
                     <button 
-                      onClick={(e) => { e.stopPropagation(); toast('Coming Soon: Link to Calendar'); }} 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setTargetNote(el);
+                        setShowCalendarModal(true);
+                      }} 
                       className="bg-blue-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-blue-700 active:scale-90 transition-colors"
                     >
                       <Calendar size={14} />
@@ -173,34 +187,67 @@ export default function BoardPage() {
         </AnimatePresence>
       </div>
 
-      {/* نافذة عرض الصورة المكبرة (Lightbox Modal) */}
+      {/* نافذة التقويم المنبثقة */}
+      <AnimatePresence>
+        {showCalendarModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+            >
+              <h3 className="text-2xl font-black text-stone-800 mb-2">Schedule Note</h3>
+              <p className="text-stone-500 mb-6 text-sm">Pick a date to add this to your calendar.</p>
+              
+              <input 
+                type="date" 
+                className="w-full p-4 bg-stone-100 rounded-2xl border-none outline-none mb-6 text-lg font-bold text-stone-700"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+              />
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowCalendarModal(false)}
+                  className="flex-1 py-4 bg-stone-200 text-stone-600 rounded-2xl font-bold active:scale-95 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveToCalendar}
+                  className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-blue-200"
+                >
+                  <Check size={20} />
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* نافذة عرض الصورة المكبرة */}
       <AnimatePresence>
         {selectedImage && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setSelectedImage(null)}
             className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
           >
-            <motion.button 
-              className="absolute top-6 right-6 text-white bg-white/10 p-3 rounded-full hover:bg-white/20"
-              onClick={() => setSelectedImage(null)}
-            >
+            <motion.button className="absolute top-6 right-6 text-white bg-white/10 p-3 rounded-full" onClick={() => setSelectedImage(null)}>
               <X size={32} />
             </motion.button>
             <motion.img 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              src={selectedImage} 
-              className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
-              alt="Preview"
+              initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}
+              src={selectedImage} className="max-w-full max-h-full rounded-lg shadow-2xl object-contain" alt="Preview"
             />
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* البنر السفلي */}
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
         <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
           <button onClick={addNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-sm active:scale-90 transition-all shadow-md">
