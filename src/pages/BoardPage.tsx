@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trash2, ChevronLeft, ImageIcon, Plus, Calendar, 
-  Loader2, Save, X, Check, MapPin, Edit3
+  Loader2, Save, X, Check, MapPin 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
@@ -30,7 +30,7 @@ export default function BoardPage() {
   
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [targetNote, setTargetNote] = useState<any>(null);
-  const [eventTitle, setEventTitle] = useState(''); // حقل فارغ دائماً عند البدء
+  const [eventTitle, setEventTitle] = useState(''); 
   const [eventDate, setEventDate] = useState('');
   const [eventNote, setEventNote] = useState('');
   const [eventLocation, setEventLocation] = useState('');
@@ -64,7 +64,7 @@ export default function BoardPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    toast.loading('Fixing images...', { id: 'up' });
+    toast.loading('Uploading...', { id: 'up' });
     for (const file of Array.from(files)) {
       const reader = new FileReader();
       reader.onload = async (ev) => {
@@ -118,23 +118,23 @@ export default function BoardPage() {
       const eventRef = doc(db, "events", userId);
       const newEvent = {
         id: `event_${Date.now()}`,
-        title: eventTitle, // العنوان الذي يكتبه المستخدم يدوياً
+        title: eventTitle,
         date: eventDate,
         location: eventLocation,
         extraNote: eventNote,
         lat: coords[0],
         lng: coords[1],
-        sourceContent: targetNote.content, // حفظ محتوى النوتة الأصلي للمشاهدة
+        sourceContent: targetNote.content,
         sourceType: targetNote.type,
         image: targetNote.type === 'image' ? targetNote.content : null,
         createdAt: new Date().toISOString()
       };
       await setDoc(eventRef, { events: arrayUnion(newEvent) }, { merge: true });
-      toast.success('Event Created!');
+      toast.success('Added to Calendar!');
       setShowCalendarModal(false);
       setEventTitle(''); setEventDate(''); setEventLocation(''); setEventNote('');
     } catch (error) {
-      toast.error('Failed to create event');
+      toast.error('Failed to save event');
     }
   };
 
@@ -160,6 +160,7 @@ export default function BoardPage() {
               whileDrag={{ scale: 1.05, zIndex: 100 }}
               className="absolute cursor-grab active:cursor-grabbing p-4"
             >
+              {/* الدبوس */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
                 <div className="w-4 h-4 bg-red-600 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.5)] border-b-4 border-red-800 relative">
                   <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent to-white/30 rounded-full" />
@@ -203,7 +204,7 @@ export default function BoardPage() {
                     onClick={(e) => { 
                       e.stopPropagation(); 
                       setTargetNote(el);
-                      setEventTitle(''); // إفراغ العنوان كما طلبت
+                      setEventTitle(''); 
                       setShowCalendarModal(true);
                     }} 
                     className="bg-blue-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-blue-700 active:scale-90 transition-colors"
@@ -217,7 +218,7 @@ export default function BoardPage() {
         </AnimatePresence>
       </div>
 
-      {/* مودال إنشاء الحدث مع العناوين التعريفية */}
+      {/* نافذة الجدولة مع العناوين التعريفية */}
       <AnimatePresence>
         {showCalendarModal && (
           <motion.div 
@@ -228,20 +229,20 @@ export default function BoardPage() {
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
               className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh]"
             >
-              <h3 className="text-2xl font-black text-stone-800 mb-6">Create Event</h3>
+              <h3 className="text-2xl font-black text-stone-800 mb-6 tracking-tight">Schedule to Main Calendar</h3>
               
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Event Name</label>
+              <div className="space-y-4 text-left">
+                <div>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1 mb-1 block">What's the event name?</label>
                   <input 
-                    type="text" placeholder="Type event name..." 
-                    className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
+                    type="text" placeholder="e.g. Family Trip" 
+                    className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700 focus:ring-2 ring-blue-500/20"
                     value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Event Date</label>
+                <div>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1 mb-1 block">When is it happening?</label>
                   <input 
                     type="date" 
                     className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
@@ -249,12 +250,12 @@ export default function BoardPage() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Location</label>
+                <div>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1 mb-1 block">Where is the location?</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
                     <input 
-                      type="text" placeholder="Search for place..." 
+                      type="text" placeholder="Search address..." 
                       className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
                       value={eventLocation} onChange={(e) => handleLocationSearch(e.target.value)}
                     />
@@ -280,17 +281,17 @@ export default function BoardPage() {
                   </MapContainer>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Notes</label>
+                <div>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1 mb-1 block">Any additional notes?</label>
                   <textarea 
-                    placeholder="Add extra details..."
+                    placeholder="Write details..."
                     className="w-full p-4 bg-stone-100 rounded-2xl h-24 outline-none resize-none font-medium text-stone-700"
                     value={eventNote} onChange={(e) => setEventNote(e.target.value)}
                   />
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button onClick={() => setShowCalendarModal(false)} className="flex-1 py-4 bg-stone-100 text-stone-600 rounded-2xl font-bold">Cancel</button>
+                  <button onClick={() => setShowCalendarModal(false)} className="flex-1 py-4 bg-stone-100 text-stone-600 rounded-2xl font-bold active:scale-95 transition-all">Cancel</button>
                   <button onClick={saveToCalendar} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
                     <Check size={20} /> Save
                   </button>
@@ -301,7 +302,6 @@ export default function BoardPage() {
         )}
       </AnimatePresence>
 
-      {/* معاينة الصورة */}
       <AnimatePresence>
         {selectedImage && (
           <motion.div 
@@ -317,7 +317,6 @@ export default function BoardPage() {
         )}
       </AnimatePresence>
 
-      {/* البنر السفلي */}
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
         <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
           <button onClick={addNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-sm active:scale-90 transition-all shadow-md">
