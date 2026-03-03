@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './ThemeContext';
 import Layout from './components/Layout';
 
-/* استيراد الصفحات الموجودة فعلياً */
+/* استيراد الصفحات المتاحة حالياً */
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -14,7 +14,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-import SketchPage from './pages/SketchPage'; // عدنا لاستخدام الملف القديم
+import BoardPage from './pages/board'; // تم الربط بالملف الجديد
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AddEventPage from './pages/AddEventPage';
@@ -41,8 +41,8 @@ export default function App() {
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
             
-            {/* الربط بملف SketchPage الذي يحتوي الآن على كود اللوحة */}
-            <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
+            {/* توجيه رابط sketch القديم ليعرض صفحة board الجديدة */}
+            <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
             
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
