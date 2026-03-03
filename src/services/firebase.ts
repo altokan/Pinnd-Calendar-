@@ -12,9 +12,13 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// الدالة التي كان يبحث عنها نظام الـ Build
+export const isFirebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
 let db: any;
 try {
   db = initializeFirestore(app, {
@@ -23,5 +27,6 @@ try {
 } catch (e) {
   db = getFirestore(app);
 }
+
 export { db };
 export default app;
