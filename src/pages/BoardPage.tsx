@@ -1,129 +1,257 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ChevronLeft, ImageIcon, Save, Plus, Maximize2, Loader2, StickyNote } from 'lucide-react';
+import { Trash2, ChevronLeft, ImageIcon, Plus, StickyNote, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '../lib/utils'; // تأكد من وجود دالة cn المساعدة في مشروعك
+
+// استيراد الخدمات من ملف الفايربيس المحدث
 import { db, storage, auth } from '../services/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
+
+// تعريف هيكل عنصر اللوحة (صورة أو نوت) مع موقعه
+interface BoardElement {
+  id: string;
+  type: 'image' | 'note';
+  content: string; // رابط الصورة أو نص النوت
+  x: number;
+  y: number;
+  rotation: number; // دوران عشوائي ليعطي مظهراً واقعياً
+}
 
 export default function BoardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [elements, setElements] = useState<any[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const corkboardRef = useRef<HTMLDivElement>(null); // مرجع للوحة الفلين لضبط حدود السحب
 
-  const userId = auth.currentUser?.uid || "guest";
+  const [elements, setElements] = useState<BoardElement[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // معرف المستخدم لربط اللوحة بحسابه
+  const userId = auth.currentUser?.uid || "guest_user";
   const boardDocRef = doc(db, "boards", userId);
 
-  // جلب البيانات من Firebase
+  // جلب بيانات اللوحة في الوقت الفعلي من Firebase Firestore
   useEffect(() => {
-    const unsub = onSnapshot(boardDocRef, (d) => {
-      if (d.exists()) setElements(d.data().elements || []);
+    const unsubscribe = onSnapshot(boardDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setElements(docSnap.data().elements || []);
+      } else {
+        // إنشاء مستند لوحة جديد إذا لم يكن موجوداً
+        setDoc(boardDocRef, { elements: [] });
+      }
       setLoading(false);
-    }, () => setLoading(false));
-    return () => unsub();
+    }, (error) => {
+      console.error("Error fetching board:", error);
+      toast.error("فشل في تحميل اللوحة");
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [userId]);
 
-  // إضافة صورة مع الرفع لـ Storage
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target?.result as string;
-      const id = `img_${Date.now()}`;
-      toast.loading('جاري رفع الصورة...', { id: 'u' });
-      try {
-        const sRef = ref(storage, `board/${userId}/${id}`);
-        await uploadString(sRef, base64, 'data_url');
-        const url = await getDownloadURL(sRef);
-        const newEl = { id, type: 'image', content: url, x: Math.random() * 100, y: Math.random() * 100, width: 250 };
-        setElements(prev => [...prev, newEl]);
-        toast.success('تمت إضافة الصورة', { id: 'u' });
-      } catch { toast.error('فشل الرفع', { id: 'u' }); }
+  // دالة لإضافة نوت ورقي جديد
+  const addNewNote = async () => {
+    const newNote: BoardElement = {
+      id: `note_${Date.now()}`,
+      type: 'note',
+      content: '', // نوت فارغ في البداية
+      x: 50, // موقع افتراضي في أعلى اليسار
+      y: 100,
+      rotation: Math.random() * 6 - 3, // دوران عشوائي بسيط بين -3 و +3 درجات
     };
-    reader.readAsDataURL(file);
+
+    try {
+      await updateDoc(boardDocRef, {
+        elements: arrayUnion(newNote)
+      });
+      toast.success('تمت إضافة نوت جديد');
+    } catch (error) {
+      toast.error('فشل في إضافة النوت');
+    }
   };
 
-  // حفظ التعديلات في Firestore
-  const onSave = async () => {
-    setSaving(true);
+  // دالة لرفع عدة صور دفعة واحدة وتطبيق الإطار التلقائي
+  const handleMultipleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const filesArray = Array.from(files);
+    toast.loading(`جاري رفع ${filesArray.length} صور...`, { id: 'upload_toast' });
+
+    let successCount = 0;
+    const newImages: BoardElement[] = [];
+
+    for (const file of filesArray) {
+      try {
+        const reader = new FileReader();
+        const uploadPromise = new Promise<void>((resolve, reject) => {
+          reader.onload = async (event) => {
+            const base64 = event.target?.result as string;
+            const id = `img_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+            
+            try {
+              // رفع الصورة إلى Firebase Storage
+              const storageRef = ref(storage, `board/${userId}/${id}`);
+              await uploadString(storageRef, base64, 'data_url');
+              const downloadURL = await getDownloadURL(storageRef);
+
+              // إنشاء عنصر صورة جديد مع موقعه ودورانه العشوائي
+              newImages.push({
+                id,
+                type: 'image',
+                content: downloadURL,
+                x: Math.random() * 100 + 100, // موقع عشوائي متداخل قليلاً
+                y: Math.random() * 100 + 150,
+                rotation: Math.random() * 10 - 5, // دوران عشوائي ليعطي مظهراً واقعياً
+              });
+              resolve();
+            } catch (error) { reject(error); }
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        await uploadPromise;
+        successCount++;
+      } catch (error) { console.error("Error uploading file:", file.name, error); }
+    }
+
+    if (newImages.length > 0) {
+      try {
+        await updateDoc(boardDocRef, {
+          elements: arrayUnion(...newImages)
+        });
+        toast.success(`تم رفع ${successCount} صور بنجاح`, { id: 'upload_toast' });
+      } catch (error) {
+        toast.error('فشل في حفظ الصور في اللوحة', { id: 'upload_toast' });
+      }
+    } else { toast.error('فشل رفع الصور', { id: 'upload_toast' }); }
+
+    // إعادة ضبط مدخل الملف للسماح برفع نفس الصور مرة أخرى إذا لزم الأمر
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // دالة لحذف عنصر (نوت أو صورة) من اللوحة ومن Firebase
+  const deleteElement = async (elementToRemove: BoardElement) => {
     try {
-      await setDoc(boardDocRef, { elements, updated: new Date().toISOString() });
-      toast.success('تم الحفظ في Firebase');
-    } catch { toast.error('فشل الحفظ'); }
-    finally { setSaving(false); }
+      await updateDoc(boardDocRef, {
+        elements: arrayRemove(elementToRemove)
+      });
+      toast.success('تم الحذف');
+    } catch (error) {
+      toast.error('فشل في الحذف');
+    }
+  };
+
+  // دالة لتحديث محتوى النوت الورقي (النص) في Firebase
+  const updateNoteContent = useCallback(
+    async (id: string, newContent: string) => {
+      try {
+        const updatedElements = elements.map(el => 
+          el.id === id ? { ...el, content: newContent } : el
+        );
+        // تحديث محلي سريع لإعطاء شعور بالاستجابة الفورية
+        setElements(updatedElements); 
+        // تحديث في Firebase (يمكن تحسين هذا باستخدام debounce)
+        await updateDoc(boardDocRef, { elements: updatedElements });
+      } catch (error) { console.error("Error updating note:", error); }
+    }, [elements, boardDocRef]
+  );
+
+  // دالة لتحديث موقع العنصر (X, Y) بعد التحريك وحفظه في Firebase
+  const handleDragEnd = async (id: string, info: any) => {
+    try {
+      // حساب الموقع الجديد بناءً على إزاحة السحب وموقع اللوحة
+      const corkboardRect = corkboardRef.current?.getBoundingClientRect();
+      if (!corkboardRect) return;
+
+      const updatedElements = elements.map(el => {
+        if (el.id === id) {
+          // حساب الإحداثيات الجديدة بدقة بالنسبة للوحة الفلين
+          const newX = el.x + info.offset.x;
+          const newY = el.y + info.offset.y;
+          
+          return { ...el, x: newX, y: newY };
+        }
+        return el;
+      });
+
+      // تحديث المواقع في Firebase لتبقى ثابتة للمستخدم
+      await updateDoc(boardDocRef, { elements: updatedElements });
+    } catch (error) { console.error("Error updating position:", error); }
   };
 
   if (loading) return (
-    <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center">
+    <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center z-[500]">
       <Loader2 className="animate-spin text-white" size={40} />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]" 
-         style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
+    <div className="fixed inset-0 overflow-hidden touch-none select-none">
+      {/* لوحة الفلين الخلفية */}
+      <div 
+        ref={corkboardRef}
+        className="absolute inset-0 z-0 bg-[#bc8a5f]" 
+        style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }} 
+      />
       
-      {/* زر العودة */}
+      {/* زر العودة في أعلى اليسار */}
       <div className="absolute top-6 left-6 z-[100]">
-        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 rounded-2xl shadow-xl hover:bg-white transition-colors">
+        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 rounded-2xl shadow-xl active:scale-90 transition-all">
           <ChevronLeft size={24} />
         </button>
       </div>
 
-      <div className="w-full h-full relative" onClick={() => setActiveId(null)}>
+      {/* منطقة العناصر القابلة للسحب (النوتات والصور) */}
+      <div className="w-full h-full relative z-10">
         <AnimatePresence>
           {elements.map((el) => (
             <motion.div
               key={el.id}
+              drag // تفعيل خاصية السحب
+              dragMomentum={false} // إيقاف القصور الذاتي لسحب أكثر دقة
+              dragConstraints={corkboardRef} // حصر السحب داخل حدود لوحة الفلين
+              onDragEnd={(_, info) => handleDragEnd(el.id, info)} // حفظ الموقع الجديد بعد السحب
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
-              drag
-              dragMomentum={false}
-              onDragStart={() => setActiveId(el.id)}
-              className="absolute p-4 cursor-grab active:cursor-grabbing"
-              style={{ x: el.x, y: el.y, width: el.width || 200, zIndex: activeId === el.id ? 50 : 20 }}
+              className="absolute z-20"
+              style={{ x: el.x, y: el.y, rotate: el.rotation, cursor: 'grab' }}
+              whileDrag={{ scale: 1.05, cursor: 'grabbing', zIndex: 100 }} // تأثير بَصري أثناء السحب
             >
-              <div className={cn(
-                "relative p-3 shadow-2xl rounded-sm ring-1 ring-black/5 transition-all",
-                el.type === 'note' ? "bg-yellow-200 rotate-1 hover:rotate-0" : "bg-white"
-              )}>
-                {/* دبوس النوت (Effect) */}
-                {el.type === 'note' && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-red-700 drop-shadow-md">
-                    <Plus size={20} className="fill-current" />
-                  </div>
-                )}
+              {/* شريط أدوات مصغر يظهر فوق العنصر عند الوقوف عليه (للحذف) */}
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-stone-900 text-white rounded-lg px-3 py-1 flex gap-2 shadow-2xl opacity-0 hover:opacity-100 transition-opacity z-30">
+                <button onClick={() => deleteElement(el)} className="hover:text-red-400">
+                  <Trash2 size={16}/>
+                </button>
+              </div>
 
-                {el.type === 'image' ? (
-                  <img src={el.content} className="w-full h-auto rounded-sm pointer-events-none" alt="" />
-                ) : (
+              {/* دبوس النوت (أيقونة بَصريّة) */}
+              {el.type === 'note' && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-red-700 drop-shadow-md z-30">
+                  <Plus size={20} className="fill-current" />
+                </div>
+              )}
+
+              {/* العنصر نفسه (نوت ورقي أو صورة مؤطرة) */}
+              <div className={cn(
+                "relative shadow-xl transition-all rounded-sm",
+                el.type === 'note' ? "bg-[#fff9c4] p-6 pr-4" : "bg-white p-3 pb-8" // محاكاة النوت الورقي والإطار الأبيض للصورة
+              )}>
+                {el.type === 'note' ? (
+                  // النوت الورقي (Sticky Note)
                   <textarea 
-                    className="w-full h-32 p-2 border-none outline-none resize-none bg-transparent font-handwriting text-stone-800"
+                    className="bg-transparent border-none outline-none w-full h-32 resize-none text-stone-800 font-handwriting"
                     placeholder="اكتب ملاحظتك هنا..."
                     defaultValue={el.content}
-                    onChange={(e) => setElements(elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i))}
+                    onChange={(e) => updateNoteContent(el.id, e.target.value)}
                   />
-                )}
-
-                {/* أدوات التحكم للعنصر النشط */}
-                {activeId === el.id && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} 
-                              className="absolute -top-12 left-0 flex gap-2">
-                    <button className="bg-red-600 text-white p-2 rounded-lg shadow-lg hover:bg-red-700" 
-                            onClick={() => setElements(elements.filter(x => x.id !== el.id))}>
-                      <Trash2 size={16}/>
-                    </button>
-                    <button className="bg-stone-800 text-white p-2 rounded-lg shadow-lg" 
-                            onClick={() => setElements(elements.map(i => i.id === el.id ? {...i, width: (i.width || 200) + 40} : i))}>
-                      <Maximize2 size={16}/>
-                    </button>
-                  </motion.div>
+                ) : (
+                  // الصورة القابلة للسحب مع الإطار الأبيض التلقائي
+                  <div className="border border-stone-200">
+                    <img src={el.content} className="w-48 h-auto pointer-events-none" />
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -131,33 +259,35 @@ export default function BoardPage() {
         </AnimatePresence>
       </div>
 
-      {/* شريط الأدوات الرئيسي */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-4 bg-stone-900/95 backdrop-blur-xl p-4 rounded-full shadow-2xl z-[200] border border-white/10">
-        <button title="إضافة ملاحظة"
-                onClick={() => setElements([...elements, { id: Date.now().toString(), type: 'note', content: '', x: 100, y: 100, width: 220 }])} 
-                className="bg-yellow-400 p-4 rounded-full hover:scale-110 active:scale-90 transition-all text-stone-900 shadow-lg">
-          <StickyNote size={24}/>
-        </button>
-        
-        <button title="إضافة صورة"
-                onClick={() => fileInputRef.current?.click()} 
-                className="bg-stone-700 text-white p-4 rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg">
-          <ImageIcon size={24}/>
-        </button>
-        
-        <button title="حفظ التغييرات"
-                onClick={onSave} 
-                className="bg-emerald-500 text-white p-4 rounded-full hover:scale-110 active:scale-90 transition-all shadow-lg">
-          {saving ? <Loader2 className="animate-spin" size={24}/> : <Save size={24}/>}
-        </button>
+      {/* شريط الأدوات الرئيسي (البنر الأسود) - تم رفعه فوق شريط التنقل السفلي */}
+      <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
+        <div className="bg-stone-900/95 backdrop-blur-xl rounded-[2.5rem] p-2 flex items-center justify-between border border-white/10 shadow-2xl">
+          {/* زر إضافة نوت ورقي جديد */}
+          <button onClick={addNewNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-xs active:scale-95 transition-all">
+            <StickyNote size={16} /> ADD NOTE
+          </button>
+          
+          {/* زر إضافة صور جديدة */}
+          <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-stone-800 text-white rounded-full active:scale-95 transition-all">
+            <ImageIcon size={20} />
+          </button>
+          
+          {/* زر حفظ يدوي (إضافي للضرورة) */}
+          <button onClick={() => toast.success('يتم الحفظ تلقائياً عند الحركة!')} className="p-4 bg-emerald-500 text-white rounded-full active:scale-95 transition-all hover:bg-emerald-600">
+            <Save size={18} />
+          </button>
+        </div>
       </div>
 
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUpload} />
+      {/* مدخل ملف مخفي للسماح برفع عدة صور دفعة واحدة */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept="image/*" 
+        multiple // السماح باختيار عدة صور
+        onChange={handleMultipleImageUpload} 
+      />
     </div>
   );
-}
-
-// دالة مساعدة للتنسيق
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }
