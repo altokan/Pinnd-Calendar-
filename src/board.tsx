@@ -8,7 +8,7 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 
-export default function BoardPage() {
+export default function SketchPage() { // أبقينا الاسم SketchPage ليتوافق مع النظام
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [elements, setElements] = useState<any[]>([]);
@@ -40,7 +40,7 @@ export default function BoardPage() {
         await uploadString(sRef, base64, 'data_url');
         const url = await getDownloadURL(sRef);
         setElements(prev => [...prev, { id, type: 'image', content: url, x: 50, y: 50, width: 200, rotation: 0 }]);
-        toast.success('تمت الإضافة', { id: 'u' });
+        toast.success('تم الرفع', { id: 'u' });
       } catch { toast.error('فشل الرفع', { id: 'u' }); }
     };
     reader.readAsDataURL(file);
@@ -50,7 +50,7 @@ export default function BoardPage() {
     setSaving(true);
     try {
       await setDoc(boardDocRef, { elements, updated: new Date().toISOString() });
-      toast.success('حُفظ سحابياً');
+      toast.success('تم الحفظ سحابياً');
     } catch { toast.error('فشل الحفظ'); }
     finally { setSaving(false); }
   };
@@ -59,23 +59,28 @@ export default function BoardPage() {
 
   return (
     <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]">
-      <div className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-xl" onClick={() => navigate(-1)}><ChevronLeft size={24} /></div>
+      <div className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-xl shadow-lg" onClick={() => navigate(-1)}><ChevronLeft size={24} /></div>
       <div className="w-full h-full relative" onClick={() => setActiveId(null)}>
         {elements.map((el) => (
           <motion.div key={el.id} drag dragMomentum={false} onDragStart={() => setActiveId(el.id)} className="absolute p-4" style={{ x: el.x, y: el.y, width: el.width, zIndex: activeId === el.id ? 50 : 20 }}>
             <div className="relative bg-white p-2 shadow-xl rounded-sm">
-              {el.type === 'image' ? <img src={el.content} className="w-full h-auto" /> : <textarea className="w-full h-32 p-2" defaultValue={el.content} onChange={(e) => setElements(elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i))} />}
-              {activeId === el.id && <button className="absolute -top-10 left-0 bg-red-500 text-white p-2 rounded" onClick={() => setElements(elements.filter(x => x.id !== el.id))}><Trash2 size={16}/></button>}
+              {el.type === 'image' ? <img src={el.content} className="w-full h-auto" alt="" /> : <textarea className="w-full h-32 p-2 border-none outline-none" defaultValue={el.content} onChange={(e) => setElements(elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i))} />}
+              {activeId === el.id && (
+                <div className="absolute -top-10 left-0 flex gap-2">
+                  <button className="bg-red-500 text-white p-2 rounded shadow-lg" onClick={() => setElements(elements.filter(x => x.id !== el.id))}><Trash2 size={16}/></button>
+                  <button className="bg-blue-500 text-white p-2 rounded shadow-lg" onClick={() => setElements(elements.map(i => i.id === el.id ? {...i, width: i.width + 30} : i))}><Maximize2 size={16}/></button>
+                </div>
+              )}
             </div>
           </motion.div>
         ))}
       </div>
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex gap-4 bg-stone-900 p-4 rounded-full shadow-2xl">
-        <button onClick={() => setElements([...elements, { id: Date.now().toString(), type: 'note', content: '', x: 50, y: 50, width: 200 }])} className="bg-yellow-400 p-3 rounded-full"><Plus size={20}/></button>
-        <button onClick={() => fileInputRef.current?.click()} className="bg-stone-700 text-white p-3 rounded-full"><ImageIcon size={20}/></button>
-        <button onClick={onSave} className="bg-emerald-500 text-white p-3 rounded-full">{saving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>}</button>
+      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 flex gap-4 bg-stone-900/90 backdrop-blur p-4 rounded-full shadow-2xl z-[200]">
+        <button onClick={() => setElements([...elements, { id: Date.now().toString(), type: 'note', content: '', x: 50, y: 50, width: 200 }])} className="bg-yellow-400 p-4 rounded-full active:scale-90 transition-transform"><Plus size={24}/></button>
+        <button onClick={() => fileInputRef.current?.click()} className="bg-stone-700 text-white p-4 rounded-full active:scale-90 transition-transform"><ImageIcon size={24}/></button>
+        <button onClick={onSave} className="bg-emerald-500 text-white p-4 rounded-full active:scale-90 transition-transform">{saving ? <Loader2 className="animate-spin" size={24}/> : <Save size={24}/>}</button>
       </div>
-      <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} />
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUpload} />
     </div>
   );
 }
