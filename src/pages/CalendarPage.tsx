@@ -1,215 +1,258 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Trash2, Loader2, MapPin, X, Clock, Bell, Image as ImageIcon, Check, Edit2, Upload,
-  Utensils, Stethoscope, PartyPopper, Briefcase, Heart
+  ChevronLeft, Plus, Calendar as CalendarIcon, Clock, MapPin, 
+  Trash2, Edit3, X, Check, ImageIcon, Utensils, Stethoscope, 
+  ShoppingBag, Plane, PartyPopper, Bell, Loader2 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { db, storage, auth } from '../services/firebase';
-import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion, setDoc } from 'firebase/firestore';
+import { db, auth, storage } from '../services/firebase';
+import { doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-const CATEGORIES = {
-  restaurant: { icon: <Utensils size={14} />, color: 'bg-orange-100 text-orange-600', label: 'Dinner' },
-  doctor: { icon: <Stethoscope size={14} />, color: 'bg-red-100 text-red-600', label: 'Doctor' },
-  party: { icon: <PartyPopper size={14} />, color: 'bg-purple-100 text-purple-600', label: 'Party' },
-  work: { icon: <Briefcase size={14} />, color: 'bg-blue-100 text-blue-600', label: 'Work' },
-  mood: { icon: <Heart size={14} />, color: 'bg-pink-100 text-pink-600', label: 'Mood' },
-};
+// أنواع الأحداث مع الأيقونات
+const EVENT_TYPES = [
+  { id: 'party', icon: <PartyPopper size={18} />, label: 'حفلة' },
+  { id: 'meeting', icon: <CalendarIcon size={18} />, label: 'موعد' },
+  { id: 'restaurant', icon: <Utensils size={18} />, label: 'مطعم' },
+  { id: 'doctor', icon: <Stethoscope size={18} />, label: 'طبيب' },
+  { id: 'shopping', icon: <ShoppingBag size={18} />, label: 'تسوق' },
+  { id: 'travel', icon: <Plane size={18} />, label: 'سفر' },
+  { id: 'other', icon: <Bell size={18} />, label: 'أخرى' },
+];
 
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
-  useEffect(() => { if (center) map.flyTo(center, 14); }, [center, map]);
+  useEffect(() => { if (center) map.flyTo(center, 14); }, [center]);
   return null;
 }
 
 export default function CalendarPage() {
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'traditional' | 'timeline'>('traditional');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  
-  const [editingEvent, setEditingEvent] = useState<any>(null);
-  const [tempTitle, setTempTitle] = useState('');
-  const [tempLocation, setTempLocation] = useState('');
-  const [tempTime, setTempTime] = useState('12:00');
-  const [tempNote, setTempNote] = useState('');
-  const [tempCategory, setTempCategory] = useState('mood');
-  const [tempImage, setTempImage] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // حالات الحقول
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [type, setType] = useState('other');
+  const [imageUrl, setImageUrl] = useState('');
+  const [coords, setCoords] = useState<[number, number]>([24.7136, 46.6753]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [tempCoords, setTempCoords] = useState<[number, number]>([24.7136, 46.6753]);
 
   const userId = auth.currentUser?.uid || "guest";
   const eventDocRef = doc(db, "events", userId);
 
   useEffect(() => {
     const unsub = onSnapshot(eventDocRef, (d) => {
-      if (d.exists()) setEvents(d.data().events || []);
+      if (d.exists()) {
+        const sorted = (d.data().events || []).sort((a: any, b: any) => 
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        setEvents(sorted);
+      }
       setLoading(false);
     });
     return () => unsub();
   }, [userId]);
 
+  const handleLocationSearch = async (val: string) => {
+    setLocation(val);
+    if (val.length >= 3) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
+      const data = await res.json();
+      setSuggestions(data.slice(0, 3));
+    } else { setSuggestions([]); }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setTempImage(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setImageUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const saveEvent = async () => {
-    if (!tempTitle || !selectedDay) return toast.error('Title required');
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-    let finalImageUrl = tempImage;
+  const resetForm = () => {
+    setTitle(''); setDate(''); setTime(''); setLocation('');
+    setType('other'); setImageUrl(''); setIsEditing(false);
+    setSelectedEvent(null); setSuggestions([]);
+  };
+
+  const handleSave = async () => {
+    if (!title || !date) return toast.error("يرجى إكمال البيانات الأساسية");
+    
+    const eventData = {
+      id: isEditing ? selectedEvent.id : `event_${Date.now()}`,
+      title, date, time, location, type, imageUrl,
+      lat: coords[0], lng: coords[1],
+      updatedAt: new Date().toISOString()
+    };
 
     try {
-      if (tempImage?.startsWith('data:image')) {
-        const sRef = ref(storage, `events/${userId}/${Date.now()}`);
-        await uploadString(sRef, tempImage, 'data_url');
-        finalImageUrl = await getDownloadURL(sRef);
+      if (isEditing) {
+        const updated = events.map(e => e.id === selectedEvent.id ? eventData : e);
+        await setDoc(eventDocRef, { events: updated }, { merge: true });
+      } else {
+        await updateDoc(eventDocRef, { events: arrayUnion(eventData) });
       }
-
-      const newEv = {
-        id: editingEvent?.id || `ev_${Date.now()}`,
-        title: tempTitle, location: tempLocation, date: dateStr,
-        time: tempTime, extraNote: tempNote, category: tempCategory,
-        image: finalImageUrl, lat: tempCoords[0], lng: tempCoords[1]
-      };
-
-      const filtered = events.filter(e => e.id !== (editingEvent?.id || ''));
-      await setDoc(eventDocRef, { events: [...filtered, newEv] }, { merge: true });
-      
-      setEditingEvent(null); setTempTitle(''); setTempImage(null); setTempLocation('');
-      toast.success('Saved');
-    } catch (e) { toast.error("Error saving"); }
+      toast.success(isEditing ? "تم التعديل" : "تمت الإضافة");
+      setShowModal(false);
+      resetForm();
+    } catch (e) { toast.error("حدث خطأ"); }
   };
 
-  const calendarDays = [];
-  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-  const dInM = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-  for (let i = 0; i < firstDay; i++) calendarDays.push(null);
-  for (let i = 1; i <= dInM; i++) calendarDays.push(i);
+  const handleDelete = async (event: any) => {
+    await updateDoc(eventDocRef, { events: arrayRemove(event) });
+    toast.success("تم الحذف");
+    setShowModal(false);
+    setSelectedEvent(null);
+  };
 
-  if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white"><Loader2 className="animate-spin text-stone-300" /></div>;
+  if (loading) return <div className="fixed inset-0 bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20">
-      <div className="bg-white border-b border-stone-100 px-6 py-5 sticky top-0 z-[100]">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full"><ChevronLeft size={28} /></button>
-          <div className="flex bg-stone-100 p-1 rounded-xl">
-            <button onClick={() => setViewMode('traditional')} className={cn("px-5 py-1.5 rounded-lg text-xs font-bold", viewMode === 'traditional' ? "bg-white text-black shadow-sm" : "text-stone-400")}>Calendar</button>
-            <button onClick={() => setViewMode('timeline')} className={cn("px-5 py-1.5 rounded-lg text-xs font-bold", viewMode === 'timeline' ? "bg-white text-black shadow-sm" : "text-stone-400")}>Timeline</button>
-          </div>
-          <button onClick={() => navigate('/map')} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full"><MapPin size={24} /></button>
-        </div>
+    <div className="min-h-screen bg-[#f8f9fa] pb-24">
+      {/* Header */}
+      <div className="p-6 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <button onClick={() => navigate(-1)} className="p-3 bg-stone-100 rounded-2xl"><ChevronLeft /></button>
+        <h1 className="text-xl font-black text-stone-800">الجدول الزمني</h1>
+        <button onClick={() => { resetForm(); setShowModal(true); }} className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-200"><Plus /></button>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 pt-10">
-        {viewMode === 'traditional' ? (
-          <div className="grid grid-cols-7 border-t border-l border-stone-100 bg-white rounded-xl overflow-hidden shadow-sm">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-              <div key={d} className="border-r border-b border-stone-100 p-4 text-center text-[10px] font-bold text-stone-400 uppercase">{d}</div>
-            ))}
-            {calendarDays.map((day, i) => {
-              const dStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const hasE = events.some(e => e.date === dStr);
-              const isT = day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth();
-              return (
-                <div key={i} onClick={() => day && setSelectedDay(day)} className={cn("aspect-square border-r border-b border-stone-100 p-2 relative cursor-pointer hover:bg-stone-50", isT && "bg-blue-50/30")}>
-                  {day && <span className={cn("text-sm font-medium", isT ? "text-blue-600 font-bold" : "text-stone-700")}>{day}</span>}
-                  {hasE && <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full" />}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="max-w-xl mx-auto space-y-4">
-             {events.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(ev => {
-               const cat = (CATEGORIES as any)[ev.category || 'mood'];
-               return (
-                <div key={ev.id} className="bg-white p-5 rounded-2xl border border-stone-100 flex items-center gap-4 shadow-sm">
-                  <div className={cn("p-3 rounded-xl", cat.color)}>{cat.icon}</div>
-                  <div className="flex-1">
-                    <p className="font-bold text-stone-800">{ev.title}</p>
-                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{cat.label} • {ev.time}</p>
-                  </div>
-                  {ev.image && <img src={ev.image} className="w-12 h-12 rounded-lg object-cover" />}
-                </div>
-               );
-             })}
-          </div>
-        )}
+      {/* Timeline List */}
+      <div className="p-6 space-y-8 relative">
+        <div className="absolute left-[31px] top-10 bottom-10 w-0.5 bg-stone-200" />
+        {events.map((ev, idx) => (
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+            key={ev.id} className="flex gap-6 relative"
+            onClick={() => { setSelectedEvent(ev); setShowModal(true); setIsEditing(false); }}
+          >
+            <div className="w-8 h-8 rounded-full bg-white border-4 border-blue-600 z-10 flex-shrink-0" />
+            <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-stone-100 flex-1 hover:shadow-md transition-all active:scale-[0.98]">
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-[10px] font-black text-blue-600 uppercase bg-blue-50 px-3 py-1 rounded-full">
+                  {ev.date}
+                </span>
+                <div className="text-stone-400">{EVENT_TYPES.find(t => t.id === ev.type)?.icon}</div>
+              </div>
+              <h3 className="text-lg font-bold text-stone-800">{ev.title}</h3>
+              {ev.location && <div className="flex items-center gap-1 text-stone-500 text-xs mt-1"><MapPin size={12}/> {ev.location}</div>}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
+      {/* Modal - View / Edit / Create */}
       <AnimatePresence>
-        {selectedDay && (
-          <motion.div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-            <motion.div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-stone-100 flex justify-between items-center">
-                <h3 className="text-xl font-bold">{selectedDay} {currentDate.toLocaleString('default', { month: 'long' })}</h3>
-                <button onClick={() => setSelectedDay(null)} className="p-2 hover:bg-stone-100 rounded-full"><X size={20}/></button>
+        {showModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
+            <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 overflow-y-auto max-h-[90vh]">
+              <div className="flex justify-between mb-6">
+                <h2 className="text-2xl font-black">{isEditing ? "تعديل الحدث" : selectedEvent ? "تفاصيل الحدث" : "حدث جديد"}</h2>
+                <button onClick={() => { setShowModal(false); resetForm(); }} className="p-2 bg-stone-100 rounded-full"><X /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="space-y-3">
-                  {events.filter(e => e.date === `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`).map(ev => {
-                    const cat = (CATEGORIES as any)[ev.category || 'mood'];
-                    return (
-                      <div key={ev.id} className="p-4 bg-stone-50 rounded-2xl border flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn("p-2 rounded-lg", cat.color)}>{cat.icon}</div>
-                          <div><p className="font-bold text-sm">{ev.title}</p><p className="text-[10px] text-stone-400 uppercase font-black">{cat.label} • {ev.time}</p></div>
-                        </div>
-                        <div className="flex gap-1">
-                          <button onClick={() => { setEditingEvent(ev); setTempTitle(ev.title); setTempCategory(ev.category || 'mood'); }} className="p-2 text-stone-400 hover:text-blue-600"><Edit2 size={16}/></button>
-                          <button onClick={() => updateDoc(eventDocRef, { events: arrayRemove(ev) })} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={16}/></button>
-                        </div>
+              <div className="space-y-5">
+                {/* Mode: View */}
+                {selectedEvent && !isEditing ? (
+                  <div className="space-y-6">
+                    {selectedEvent.imageUrl && <img src={selectedEvent.imageUrl} className="w-full h-48 object-cover rounded-[2rem]" />}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-stone-50 rounded-2xl"><div className="text-xs text-stone-400 mb-1">التاريخ</div><div className="font-bold flex items-center gap-2"><CalendarIcon size={16}/> {selectedEvent.date}</div></div>
+                      <div className="p-4 bg-stone-50 rounded-2xl"><div className="text-xs text-stone-400 mb-1">الوقت</div><div className="font-bold flex items-center gap-2"><Clock size={16}/> {selectedEvent.time || '--:--'}</div></div>
+                    </div>
+                    <div className="p-4 bg-stone-50 rounded-2xl"><div className="text-xs text-stone-400 mb-1">الموقع</div><div className="font-bold flex items-center gap-2 text-sm"><MapPin size={16}/> {selectedEvent.location || 'لا يوجد موقع'}</div></div>
+                    
+                    <div className="flex gap-3">
+                      <button onClick={() => { 
+                        setTitle(selectedEvent.title); setDate(selectedEvent.date); setTime(selectedEvent.time); 
+                        setLocation(selectedEvent.location); setType(selectedEvent.type); setImageUrl(selectedEvent.imageUrl);
+                        setIsEditing(true); 
+                      }} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2"><Edit3 size={18}/> تعديل</button>
+                      <button onClick={() => handleDelete(selectedEvent)} className="p-4 bg-red-50 text-red-600 rounded-2xl"><Trash2 /></button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Mode: Create / Edit */
+                  <>
+                    <div className="space-y-4">
+                      <input type="text" placeholder="اسم الحدث" className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold" value={title} onChange={e => setTitle(e.target.value)} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="date" className="p-4 bg-stone-100 rounded-2xl font-bold" value={date} onChange={e => setDate(e.target.value)} />
+                        <input type="time" className="p-4 bg-stone-100 rounded-2xl font-bold" value={time} onChange={e => setTime(e.target.value)} />
                       </div>
-                    );
-                  })}
-                </div>
+                      
+                      {/* Event Types */}
+                      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                        {EVENT_TYPES.map(cat => (
+                          <button key={cat.id} onClick={() => setType(cat.id)} className={cn("min-w-[70px] p-3 rounded-2xl border-2 transition-all flex flex-col items-center gap-1", type === cat.id ? "border-blue-500 bg-blue-50" : "border-stone-50 bg-white")}>
+                            <div className="p-2 bg-stone-100 rounded-xl">{cat.icon}</div>
+                            <span className="text-[10px] font-bold">{cat.label}</span>
+                          </button>
+                        ))}
+                      </div>
 
-                <div className="pt-4 border-t border-stone-100 space-y-4">
-                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {Object.entries(CATEGORIES).map(([id, cat]) => (
-                      <button key={id} onClick={() => setTempCategory(id)} className={cn(
-                        "p-3 rounded-xl border flex flex-col items-center gap-1 min-w-[65px] transition-all",
-                        tempCategory === id ? "border-blue-500 bg-blue-50" : "border-stone-100 bg-white"
-                      )}>
-                        <div className={cn("p-1.5 rounded-lg", cat.color)}>{cat.icon}</div>
-                        <span className="text-[8px] font-black uppercase">{cat.label}</span>
+                      {/* Location Search & Map */}
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
+                        <input type="text" placeholder="ابحث عن عنوان..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none" value={location} onChange={e => handleLocationSearch(e.target.value)} />
+                        {suggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[100] border overflow-hidden">
+                            {suggestions.map((s, i) => (
+                              <div key={i} onClick={() => { setLocation(s.display_name); setCoords([parseFloat(s.lat), parseFloat(s.lon)]); setSuggestions([]); }} className="p-4 hover:bg-blue-50 text-xs border-b cursor-pointer">{s.display_name}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="h-32 rounded-3xl overflow-hidden border">
+                        <MapContainer center={coords} zoom={13} style={{height:'100%', width:'100%'}} zoomControl={false}>
+                          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                          <Marker position={coords} />
+                          <ChangeView center={coords} />
+                        </MapContainer>
+                      </div>
+
+                      {/* Image Upload */}
+                      <div className="relative group border-2 border-dashed border-stone-200 rounded-[2rem] p-4 flex flex-col items-center justify-center min-h-[120px]">
+                        {imageUrl ? (
+                          <div className="relative w-full h-32">
+                            <img src={imageUrl} className="w-full h-full object-cover rounded-xl" />
+                            <button onClick={() => setImageUrl('')} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"><X size={14}/></button>
+                          </div>
+                        ) : (
+                          <>
+                            <ImageIcon className="text-stone-300 mb-2" size={32} />
+                            <label className="text-sm font-bold text-blue-600 cursor-pointer">
+                              أضف صورة للحدث
+                              <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      <button onClick={handleSave} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                        <Check size={22} /> {isEditing ? "حفظ التعديلات" : "تأكيد الإضافة"}
                       </button>
-                    ))}
-                  </div>
-                  <input type="text" placeholder="What's happening?" className="w-full p-4 bg-stone-100 rounded-2xl text-sm font-bold outline-none" value={tempTitle} onChange={e => setTempTitle(e.target.value)} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-stone-100 p-4 rounded-2xl flex items-center gap-2 font-bold text-xs"><Clock size={16}/> <input type="time" className="bg-transparent outline-none" value={tempTime} onChange={e => setTempTime(e.target.value)} /></div>
-                    <div className="bg-stone-100 p-4 rounded-2xl flex items-center gap-2 text-stone-400 font-bold text-xs"><Bell size={16}/> Alert</div>
-                  </div>
-                  <textarea placeholder="Note..." className="w-full p-4 bg-stone-100 rounded-2xl h-20 text-sm outline-none resize-none" value={tempNote} onChange={e => setTempNote(e.target.value)} />
-                  <div className="flex items-center justify-between">
-                     <button onClick={() => fileRef.current?.click()} className="text-[10px] font-bold text-blue-600 flex items-center gap-1"><Upload size={12}/> {tempImage ? 'Change Photo' : 'Add Photo'}</button>
-                     <button onClick={saveEvent} className="bg-stone-900 text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all">Save Plan</button>
-                  </div>
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <input type="file" ref={fileRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
     </div>
   );
 }
