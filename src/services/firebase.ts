@@ -1,17 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { 
+  getFirestore, 
   initializeFirestore, 
   persistentLocalCache, 
-  persistentMultipleTabManager,
-  getFirestore 
+  persistentMultipleTabManager 
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-
-// التحقق من وجود الإعدادات
-export const isFirebaseConfigured =
-  !!import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_API_KEY !== "placeholder";
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,20 +18,17 @@ export const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
 
-// إعداد Firestore مع دعم الكاش والعمل بدون إنترنت
 let db: any;
 try {
   db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
-    }),
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
   });
 } catch (e) {
   db = getFirestore(app);
 }
 
-export const auth = getAuth(app);
-export const storage = getStorage(app);
 export { db };
 export default app;
