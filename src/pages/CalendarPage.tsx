@@ -21,11 +21,11 @@ function ChangeView({ center }: { center: [number, number] }) {
 }
 
 const EVENT_TYPES = [
-  { id: 'food', icon: Utensils, label: 'مطعم', color: 'bg-orange-500' },
-  { id: 'party', icon: Music, label: 'حفلة', color: 'bg-purple-500' },
-  { id: 'med', icon: Stethoscope, label: 'طبيب', color: 'bg-red-500' },
-  { id: 'work', icon: Briefcase, label: 'عمل', color: 'bg-blue-500' },
-  { id: 'other', icon: Star, label: 'أخرى', color: 'bg-stone-500' },
+  { id: 'food', icon: Utensils, label: 'Restaurant', color: 'bg-orange-500' },
+  { id: 'party', icon: Music, label: 'Party', color: 'bg-purple-500' },
+  { id: 'med', icon: Stethoscope, label: 'Doctor', color: 'bg-red-500' },
+  { id: 'work', icon: Briefcase, label: 'Work', color: 'bg-blue-500' },
+  { id: 'other', icon: Star, label: 'Other', color: 'bg-stone-500' },
 ];
 
 export default function CalendarPage() {
@@ -94,11 +94,11 @@ export default function CalendarPage() {
   };
 
   const saveEvent = async () => {
-    if (!form.title || !form.date) return toast.error('الاسم والتاريخ مطلوبان');
+    if (!form.title || !form.date) return toast.error('Title and Date are required');
     const newEvent = { ...form, id: selectedEvent?.id || `ev_${Date.now()}`, coords };
     let updatedEvents = selectedEvent ? events.map(e => e.id === selectedEvent.id ? newEvent : e) : [...events, newEvent];
     await updateDoc(eventsDocRef, { events: updatedEvents });
-    toast.success('تم الحفظ');
+    toast.success('Saved successfully');
     setShowAddModal(false);
     setSelectedEvent(null);
     setSelectedDayEvents(null);
@@ -107,7 +107,7 @@ export default function CalendarPage() {
   const deleteEvent = async (id: string) => {
     const updated = events.filter(e => e.id !== id);
     await updateDoc(eventsDocRef, { events: updated });
-    toast.success('تم الحذف');
+    toast.success('Deleted');
     setSelectedEvent(null);
     setSelectedDayEvents(null);
   };
@@ -121,7 +121,7 @@ export default function CalendarPage() {
       <div className="max-w-4xl mx-auto flex items-center justify-between mb-10">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-stone-900 capitalize">
-            {currentDate.toLocaleString('default', { month: 'long' })}
+            {currentDate.toLocaleString('en-US', { month: 'long' })}
             <span className="text-blue-600 ml-2">{currentDate.getFullYear()}</span>
           </h1>
           <div className="flex gap-4 mt-1 items-center">
@@ -185,13 +185,13 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Modal: عرض أحداث اليوم */}
+      {/* Modal: Day Events */}
       <AnimatePresence>
         {selectedDayEvents && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[900] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black">أحداث اليوم</h2>
+                <h2 className="text-xl font-black">Day Events</h2>
                 <button onClick={() => setSelectedDayEvents(null)}><X /></button>
               </div>
               <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
@@ -199,7 +199,7 @@ export default function CalendarPage() {
                   <div key={e.id} className="p-4 bg-stone-50 rounded-2xl flex items-center justify-between border border-stone-100 group">
                     <div className="flex-1 cursor-pointer" onClick={() => { setSelectedEvent(e); setForm(e); }}>
                       <p className="font-black text-stone-800">{e.title}</p>
-                      <p className="text-xs text-stone-400 font-bold">{e.time || 'بدون وقت'}</p>
+                      <p className="text-xs text-stone-400 font-bold">{e.time || 'No Time'}</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => { setForm(e); setSelectedEvent(e); setShowAddModal(true); setSelectedDayEvents(null); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"><Edit3 size={18}/></button>
@@ -208,32 +208,32 @@ export default function CalendarPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => { setShowAddModal(true); setSelectedDayEvents(null); }} className="w-full mt-6 py-4 bg-stone-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={18}/> إضافة حدث جديد</button>
+              <button onClick={() => { setShowAddModal(true); setSelectedDayEvents(null); }} className="w-full mt-6 py-4 bg-stone-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={18}/> Add New Event</button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Modal: إضافة / تعديل حدث */}
+      {/* Modal: Add / Edit Event */}
       <AnimatePresence>
         {(showAddModal || selectedEvent) && !selectedDayEvents && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] bg-stone-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
             <motion.div initial={{ y: 100 }} animate={{ y: 0 }} className="bg-white rounded-[2.5rem] w-full max-w-md p-8 overflow-y-auto max-h-[90vh] shadow-2xl relative">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black">{selectedEvent ? 'تعديل الحدث' : 'حدث جديد'}</h2>
+                <h2 className="text-2xl font-black">{selectedEvent ? 'Edit Event' : 'New Event'}</h2>
                 <button onClick={() => { setShowAddModal(false); setSelectedEvent(null); }} className="p-2 bg-stone-100 rounded-full"><X size={20}/></button>
               </div>
 
               <div className="space-y-4">
-                <input placeholder="اسم الحدث" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+                <input placeholder="Event Title" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">التاريخ</label>
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Date</label>
                     <input type="date" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none text-sm" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">الوقت</label>
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Time</label>
                     <input type="time" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none text-sm" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export default function CalendarPage() {
                 <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl">
                   <div className="flex items-center gap-2 font-bold text-sm text-stone-600">
                     {form.alert ? <Bell className="text-blue-500" size={18}/> : <BellOff className="text-stone-300" size={18}/>}
-                    إنشاء تنبيه
+                    Enable Alert
                   </div>
                   <button onClick={() => setForm({...form, alert: !form.alert})} className={cn("w-12 h-6 rounded-full transition-all relative", form.alert ? "bg-blue-500" : "bg-stone-300")}>
                     <div className={cn("absolute top-1 w-4 h-4 bg-white rounded-full transition-all", form.alert ? "left-7" : "left-1")} />
@@ -249,10 +249,10 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="relative">
-                  <label className="text-[10px] font-black text-stone-400 uppercase ml-1">الموقع</label>
+                  <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Location</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
-                    <input placeholder="ابحث عن عنوان..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl font-bold outline-none" value={form.location} onChange={e => handleLocationSearch(e.target.value)} />
+                    <input placeholder="Search for address..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl font-bold outline-none" value={form.location} onChange={e => handleLocationSearch(e.target.value)} />
                     {suggestions.length > 0 && (
                       <div className="absolute top-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[1200] border mt-1 overflow-hidden">
                         {suggestions.map((s, i) => (
@@ -281,11 +281,11 @@ export default function CalendarPage() {
                 </div>
 
                 <button onClick={() => fileInputRef.current?.click()} className="w-full p-4 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm">
-                  <ImageIcon size={18} /> {form.image ? 'تم إرفاق صورة' : 'إرفاق صورة'}
+                  <ImageIcon size={18} /> {form.image ? 'Image Attached' : 'Attach Image'}
                 </button>
                 <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
 
-                <button onClick={saveEvent} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black shadow-lg shadow-blue-200 active:scale-95 transition-all">حفظ الحدث</button>
+                <button onClick={saveEvent} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black shadow-lg shadow-blue-200 active:scale-95 transition-all">Save Event</button>
               </div>
             </motion.div>
           </motion.div>
