@@ -52,7 +52,7 @@ export default function BoardPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    toast.loading('تثبيت الصور...', { id: 'up' });
+    toast.loading('Fixing images...', { id: 'up' });
     for (const file of Array.from(files)) {
       const reader = new FileReader();
       reader.onload = async (ev) => {
@@ -65,12 +65,12 @@ export default function BoardPage() {
       };
       reader.readAsDataURL(file);
     }
-    toast.success('تم التثبيت', { id: 'up' });
+    toast.success('Pinned!', { id: 'up' });
   };
 
   const removeElement = async (el: any) => {
     await updateDoc(boardDocRef, { elements: arrayRemove(el) });
-    toast.success('تمت الإزالة');
+    toast.success('Removed');
   };
 
   if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
@@ -94,12 +94,11 @@ export default function BoardPage() {
               whileDrag={{ scale: 1.05, zIndex: 100 }}
               className="absolute cursor-grab active:cursor-grabbing p-4"
             >
-              {/* الدبوس الأحمر الواقعي فوق العنصر */}
+              {/* الدبوس الأحمر */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
                 <div className="w-4 h-4 bg-red-600 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.5)] border-b-4 border-red-800 relative">
                   <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent to-white/30 rounded-full" />
                 </div>
-                {/* ظل الدبوس على الورقة */}
                 <div className="w-1 h-1 bg-black/20 rounded-full blur-[1px] mx-auto mt-0.5" />
               </div>
 
@@ -110,7 +109,7 @@ export default function BoardPage() {
                     ? "bg-[#fff9c4] p-6 pt-12 w-56 h-56 shadow-[8px_8px_20px_rgba(0,0,0,0.2)]" 
                     : "bg-white p-2 pb-12 shadow-xl border border-stone-200"
               )}>
-                {/* تأثير الطعجة الواقعي */}
+                {/* تأثير الطعجة */}
                 {el.type === 'note' && (
                   <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#f0e68c] rotate-45 shadow-inner border-l border-t border-black/5" />
                 )}
@@ -119,7 +118,7 @@ export default function BoardPage() {
                   <textarea
                     style={{ fontFamily: "'Caveat', cursive" }}
                     className="w-full h-full bg-transparent border-none outline-none resize-none text-stone-800 leading-tight text-2xl font-bold"
-                    placeholder="اكتب فكرتك هنا..."
+                    placeholder="Write your idea here..."
                     defaultValue={el.content}
                     onChange={(e) => {
                       const updated = elements.map(item => item.id === el.id ? {...item, content: e.target.value} : item);
@@ -130,26 +129,29 @@ export default function BoardPage() {
                   <img src={el.content} className="w-48 h-auto pointer-events-none block grayscale-[0.1]" alt="" />
                 )}
 
-                {/* خيارات العنصر النشط (حذف + تحويل للتقويم) */}
-                {activeId === el.id && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute -top-4 -right-4 flex flex-col gap-2 z-[90]">
-                    <button onClick={(e) => { e.stopPropagation(); removeElement(el); }} className="bg-red-600 text-white p-2 rounded-full shadow-lg active:scale-90">
-                      <Trash2 size={16} />
+                {/* أزرار التحكم - تظهر الآن بشكل دائم */}
+                <div className="absolute top-2 right-2 flex flex-col gap-2 z-[90]">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); removeElement(el); }} 
+                    className="bg-red-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-red-700 active:scale-90 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  {el.type === 'note' && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toast('Coming Soon: Link to Calendar'); }} 
+                      className="bg-blue-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-blue-700 active:scale-90 transition-colors"
+                    >
+                      <Calendar size={14} />
                     </button>
-                    {el.type === 'note' && (
-                      <button onClick={(e) => { e.stopPropagation(); toast('قريباً: تحويل هذه الملاحظة لحدث في التقويم!'); }} className="bg-blue-600 text-white p-2 rounded-full shadow-lg active:scale-90">
-                        <Calendar size={16} />
-                      </button>
-                    )}
-                  </motion.div>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
 
-      {/* البنر السفلي المطور (Floating Dock) */}
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
         <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
           <button onClick={addNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-sm active:scale-90 transition-all shadow-md">
@@ -160,7 +162,7 @@ export default function BoardPage() {
             <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-stone-800 text-white rounded-full active:scale-90">
               <ImageIcon size={22} />
             </button>
-            <button onClick={() => toast.success('تم الحفظ في السحابة')} className="p-4 bg-emerald-500 text-white rounded-full active:scale-90">
+            <button onClick={() => toast.success('Saved to cloud')} className="p-4 bg-emerald-500 text-white rounded-full active:scale-90">
               <Save size={22} />
             </button>
           </div>
