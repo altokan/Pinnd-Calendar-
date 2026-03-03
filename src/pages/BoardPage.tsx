@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save, X, Check } from 'lucide-react';
+import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save, X, Check, MapPin, AlignLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
 import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -18,10 +18,12 @@ export default function BoardPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
-  // حالات للتقويم
+  // حالات مودال التقويم المطور
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [targetNote, setTargetNote] = useState<any>(null);
+  const [targetElement, setTargetElement] = useState<any>(null);
   const [eventDate, setEventDate] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [eventNote, setEventNote] = useState('');
 
   const userId = auth.currentUser?.uid || "guest";
   const boardDocRef = doc(db, "boards", userId);
@@ -79,7 +81,6 @@ export default function BoardPage() {
     setDoc(boardDocRef, { elements: updated }, { merge: true });
   };
 
-  // وظيفة حفظ الحدث في التقويم
   const saveToCalendar = async () => {
     if (!eventDate) {
       toast.error('Please select a date');
@@ -89,16 +90,22 @@ export default function BoardPage() {
       const eventRef = doc(db, "events", userId);
       const newEvent = {
         id: `event_${Date.now()}`,
-        title: targetNote.content || "Untitled Note",
+        title: targetElement.type === 'note' ? (targetElement.content || "New Note Event") : "Photo Event",
+        image: targetElement.type === 'image' ? targetElement.content : null,
         date: eventDate,
+        location: eventLocation,
+        extraNote: eventNote,
         createdAt: new Date().toISOString()
       };
       await setDoc(eventRef, { events: arrayUnion(newEvent) }, { merge: true });
-      toast.success('Added to Calendar!');
+      toast.success('Scheduled successfully!');
       setShowCalendarModal(false);
+      // ريست للبيانات
       setEventDate('');
+      setEventLocation('');
+      setEventNote('');
     } catch (error) {
-      toast.error('Failed to save event');
+      toast.error('Failed to save');
     }
   };
 
@@ -168,18 +175,16 @@ export default function BoardPage() {
                   <button onClick={(e) => { e.stopPropagation(); removeElement(el); }} className="bg-red-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-red-700 active:scale-90 transition-colors">
                     <Trash2 size={14} />
                   </button>
-                  {el.type === 'note' && (
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setTargetNote(el);
-                        setShowCalendarModal(true);
-                      }} 
-                      className="bg-blue-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-blue-700 active:scale-90 transition-colors"
-                    >
-                      <Calendar size={14} />
-                    </button>
-                  )}
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      setTargetElement(el);
+                      setShowCalendarModal(true);
+                    }} 
+                    className="bg-blue-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-blue-700 active:scale-90 transition-colors"
+                  >
+                    <Calendar size={14} />
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -187,7 +192,7 @@ export default function BoardPage() {
         </AnimatePresence>
       </div>
 
-      {/* نافذة التقويم المنبثقة */}
+      {/* مودال التقويم المطور (إضافة نوت وعنوان) */}
       <AnimatePresence>
         {showCalendarModal && (
           <motion.div 
@@ -196,22 +201,60 @@ export default function BoardPage() {
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-              className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <h3 className="text-2xl font-black text-stone-800 mb-2">Schedule Note</h3>
-              <p className="text-stone-500 mb-6 text-sm">Pick a date to add this to your calendar.</p>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black text-stone-800">Add to Schedule</h3>
+                <button onClick={() => setShowCalendarModal(false)} className="text-stone-400"><X /></button>
+              </div>
               
-              <input 
-                type="date" 
-                className="w-full p-4 bg-stone-100 rounded-2xl border-none outline-none mb-6 text-lg font-bold text-stone-700"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-              />
+              <div className="space-y-5">
+                {/* Date Input */}
+                <div>
+                  <label className="text-xs font-bold text-stone-400 uppercase ml-1 mb-2 block">Event Date</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-stone-100 rounded-2xl border-none outline-none text-stone-700 font-bold"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                  />
+                </div>
 
-              <div className="flex gap-3">
+                {/* Location Input */}
+                <div>
+                  <label className="text-xs font-bold text-stone-400 uppercase ml-1 mb-2 block">Location / Address</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Enter location name or address"
+                      className="w-full p-4 pl-12 bg-stone-100 rounded-2xl border-none outline-none text-stone-700"
+                      value={eventLocation}
+                      onChange={(e) => setEventLocation(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Extra Notes Input */}
+                <div>
+                  <label className="text-xs font-bold text-stone-400 uppercase ml-1 mb-2 block">Additional Notes</label>
+                  <div className="relative">
+                    <AlignLeft className="absolute left-4 top-4 text-stone-400" size={18} />
+                    <textarea 
+                      placeholder="Write more details here..."
+                      rows={3}
+                      className="w-full p-4 pl-12 bg-stone-100 rounded-2xl border-none outline-none text-stone-700 resize-none"
+                      value={eventNote}
+                      onChange={(e) => setEventNote(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
                 <button 
                   onClick={() => setShowCalendarModal(false)}
-                  className="flex-1 py-4 bg-stone-200 text-stone-600 rounded-2xl font-bold active:scale-95 transition-all"
+                  className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-bold active:scale-95 transition-all"
                 >
                   Cancel
                 </button>
@@ -220,7 +263,7 @@ export default function BoardPage() {
                   className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-blue-200"
                 >
                   <Check size={20} />
-                  Save
+                  Save Event
                 </button>
               </div>
             </motion.div>
