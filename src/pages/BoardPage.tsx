@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trash2, ChevronLeft, ImageIcon, Plus, Calendar, 
   Loader2, Save, X, Check, MapPin, AlignLeft, 
-  Clock, Utensils, Stethoscope, PartyPopper, Briefcase 
+  Clock, Utensils, Stethoscope, PartyPopper, Briefcase, Edit2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
@@ -13,20 +13,22 @@ import { toast } from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+const SOUNDS = {
+  PIN: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
+  TEAR: 'https://assets.mixkit.co/active_storage/sfx/31/31-preview.mp3',
+  DRAG: 'https://assets.mixkit.co/active_storage/sfx/1113/1113-preview.mp3'
+};
 
-// أنواع المواعيد
 const EVENT_TYPES = [
-  { id: 'restaurant', icon: <Utensils size={18} />, label: 'Restaurant', color: 'bg-orange-100 text-orange-600' },
-  { id: 'doctor', icon: <Stethoscope size={18} />, label: 'Doctor', color: 'bg-red-100 text-red-600' },
+  { id: 'restaurant', icon: <Utensils size={18} />, label: 'Resto', color: 'bg-orange-100 text-orange-600' },
+  { id: 'doctor', icon: <Stethoscope size={18} />, label: 'Dr', color: 'bg-red-100 text-red-600' },
   { id: 'party', icon: <PartyPopper size={18} />, label: 'Party', color: 'bg-purple-100 text-purple-600' },
   { id: 'work', icon: <Briefcase size={18} />, label: 'Work', color: 'bg-blue-100 text-blue-600' },
-  { id: 'other', icon: <Calendar size={18} />, label: 'Other', color: 'bg-stone-100 text-stone-600' },
 ];
 
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
-  map.setView(center, 14);
+  useEffect(() => { map.flyTo(center, 14); }, [center, map]);
   return null;
 }
 
@@ -35,221 +37,141 @@ export default function BoardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [elements, setElements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  
-  // حالات مودال التقويم
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [targetElement, setTargetElement] = useState<any>(null);
+  
+  // Suggestion Logic
+  const [eventLocation, setEventLocation] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [coords, setCoords] = useState<[number, number]>([24.7136, 46.6753]);
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('12:00');
-  const [eventType, setEventType] = useState('other');
-  const [eventLocation, setEventLocation] = useState('');
-  const [eventNote, setEventNote] = useState('');
-  const [coords, setCoords] = useState<[number, number]>([24.7136, 46.6753]);
 
   const userId = auth.currentUser?.uid || "guest";
   const boardDocRef = doc(db, "boards", userId);
+
+  const playSound = (url: string) => { const a = new Audio(url); a.volume = 0.2; a.play().catch(()=>{}); };
 
   useEffect(() => {
     const unsub = onSnapshot(boardDocRef, (d) => {
       if (d.exists()) setElements(d.data().elements || []);
       setLoading(false);
-    }, () => setLoading(false));
+    });
     return () => unsub();
   }, [userId]);
 
-  const searchLocation = async (query: string) => {
-    setEventLocation(query);
-    if (query.length < 3) return;
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+  const handleLocationInput = async (val: string) => {
+    setEventLocation(val);
+    if (val.length > 3) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
       const data = await res.json();
-      if (data && data.length > 0) {
-        setCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
-      }
-    } catch (e) {}
+      setSuggestions(data.slice(0, 5));
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const selectSuggestion = (s: any) => {
+    setEventLocation(s.display_name);
+    setCoords([parseFloat(s.lat), parseFloat(s.lon)]);
+    setSuggestions([]);
   };
 
   const addNote = async () => {
+    playSound(SOUNDS.PIN);
     const id = `note_${Date.now()}`;
-    const newNote = { id, type: 'note', content: '', x: 50 + Math.random() * 50, y: 150, rotate: Math.random() * 4 - 2 };
-    await updateDoc(boardDocRef, { elements: arrayUnion(newNote) });
-  };
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    toast.loading('Uploading...', { id: 'up' });
-    for (const file of Array.from(files)) {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const id = `img_${Date.now()}`;
-        const sRef = ref(storage, `board/${userId}/${id}`);
-        await uploadString(sRef, ev.target?.result as string, 'data_url');
-        const url = await getDownloadURL(sRef);
-        await updateDoc(boardDocRef, { elements: arrayUnion({ id, type: 'image', content: url, x: 100, y: 200, rotate: 0 }) });
-      };
-      reader.readAsDataURL(file);
-    }
-    toast.success('Pinned!', { id: 'up' });
+    await updateDoc(boardDocRef, { elements: arrayUnion({ id, type: 'note', content: '', x: 50, y: 150, rotate: 0 }) });
   };
 
   const saveToCalendar = async () => {
-    if (!eventDate) return toast.error('Select a date');
-    try {
-      const eventRef = doc(db, "events", userId);
-      const newEvent = {
-        id: `event_${Date.now()}`,
-        title: targetElement.type === 'note' ? (targetElement.content || "New Plan") : "Photo Event",
-        image: targetElement.type === 'image' ? targetElement.content : null,
-        date: eventDate,
-        time: eventTime,
-        type: eventType,
-        location: eventLocation,
-        lat: coords[0],
-        lng: coords[1],
-        extraNote: eventNote,
-        createdAt: new Date().toISOString()
-      };
-      await setDoc(eventRef, { events: arrayUnion(newEvent) }, { merge: true });
-      toast.success('Scheduled!');
-      setShowCalendarModal(false);
-      setEventLocation(''); setEventNote('');
-    } catch (error) { toast.error('Error saving'); }
+    if (!eventDate) return toast.error('Date required');
+    const eventRef = doc(db, "events", userId);
+    const newEvent = {
+      id: `ev_${Date.now()}`,
+      title: targetElement.content || "Idea from Board",
+      date: eventDate, time: eventTime, location: eventLocation,
+      lat: coords[0], lng: coords[1], image: targetElement.type === 'image' ? targetElement.content : null
+    };
+    await setDoc(eventRef, { events: arrayUnion(newEvent) }, { merge: true });
+    setShowCalendarModal(false);
+    toast.success('Scheduled!');
   };
 
-  if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
+  if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-stone-100"><Loader2 className="animate-spin text-stone-400" /></div>;
 
   return (
-    <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
-      
-      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95 transition-all">
-        <ChevronLeft size={24} />
-      </button>
+    <div className="fixed inset-0 overflow-hidden bg-[#bc8a5f] select-none" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
+      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl"><ChevronLeft/></button>
 
-      {/* لوحة المسامير */}
-      <div className="w-full h-full relative z-10" onClick={() => setActiveId(null)}>
-        <AnimatePresence>
-          {elements.map((el) => (
-            <motion.div
-              key={el.id}
-              drag dragMomentum={false}
-              onDragStart={() => setActiveId(el.id)}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1, x: el.x, y: el.y, rotate: el.rotate }}
-              className="absolute cursor-grab active:cursor-grabbing p-4"
-            >
-              {/* المسمار الأحمر */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80]">
-                <div className="w-4 h-4 bg-red-600 rounded-full shadow-md border-b-4 border-red-800" />
+      <div className="w-full h-full relative">
+        {elements.map((el) => (
+          <motion.div key={el.id} drag dragMomentum={false} initial={{ scale: 0 }} animate={{ scale: 1, x: el.x, y: el.y }} className="absolute p-4 touch-none">
+            <div className={cn("relative shadow-2xl bg-white group", el.type === 'note' ? "bg-[#fff9c4] p-6 pt-10 min-w-[180px]" : "p-2 pb-8")}>
+              {el.type === 'note' ? (
+                <textarea className="bg-transparent border-none outline-none font-serif text-lg w-full" defaultValue={el.content} onBlur={(e) => {
+                  const updated = elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i);
+                  setDoc(boardDocRef, { elements: updated }, { merge: true });
+                }} />
+              ) : ( <img src={el.content} className="w-32 md:w-48 h-auto" alt="" /> )}
+              
+              <div className="absolute -right-10 top-0 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => { setTargetElement(el); setShowCalendarModal(true); }} className="p-2 bg-blue-600 text-white rounded-full"><Calendar size={16}/></button>
+                <button onClick={() => { playSound(SOUNDS.TEAR); updateDoc(boardDocRef, { elements: arrayRemove(el) }); }} className="p-2 bg-white text-red-500 rounded-full shadow-md"><Trash2 size={16}/></button>
               </div>
-
-              <div className={cn(
-                "relative shadow-2xl bg-white transition-all",
-                el.type === 'note' ? "bg-[#fff9c4] p-6 pt-10 min-w-[200px]" : "p-2 pb-10"
-              )}>
-                {el.type === 'note' ? (
-                  <textarea 
-                    className="w-full bg-transparent border-none outline-none text-xl font-bold font-serif" 
-                    defaultValue={el.content}
-                    onBlur={(e) => {
-                      const updated = elements.map(item => item.id === el.id ? {...item, content: e.target.value} : item);
-                      setDoc(boardDocRef, { elements: updated }, { merge: true });
-                    }}
-                  />
-                ) : (
-                  <img src={el.content} className="w-40 h-auto" onClick={() => setSelectedImage(el.content)} alt="" />
-                )}
-
-                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button onClick={() => updateDoc(boardDocRef, { elements: arrayRemove(el) })} className="bg-red-500 text-white p-1 rounded-md"><Trash2 size={12}/></button>
-                </div>
-                
-                {/* أزرار التحكم الجانبية */}
-                <div className="absolute -right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
-                    <button onClick={() => { setTargetElement(el); setShowCalendarModal(true); }} className="bg-blue-600 text-white p-2 rounded-full shadow-lg active:scale-90 transition-all"><Calendar size={16}/></button>
-                    <button onClick={() => updateDoc(boardDocRef, { elements: arrayRemove(el) })} className="bg-white text-red-500 p-2 rounded-full shadow-lg active:scale-90 transition-all"><Trash2 size={16}/></button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* مودال التقويم المطور */}
+      {/* التعديل: البنر السفلي المتجاوب */}
+      <div className="fixed bottom-10 md:bottom-16 left-1/2 -translate-x-1/2 z-[200] w-[95%] max-w-md">
+        <div className="bg-stone-900/95 backdrop-blur-xl rounded-[2.5rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
+          <button onClick={addNote} className="px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black flex items-center gap-2 active:scale-95 transition-all">
+            <Plus size={18} /> <span>NEW IDEA</span>
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-stone-800 text-white rounded-full active:scale-90 transition-all">
+            <ImageIcon size={22} />
+          </button>
+        </div>
+      </div>
+
+      {/* مودال الجدولة مع الاقتراحات */}
       <AnimatePresence>
         {showCalendarModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3rem] p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="bg-white rounded-[2.5rem] p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-black">Plan this Idea</h3>
+                <h3 className="text-xl font-black text-stone-800">Schedule to Calendar</h3>
                 <button onClick={() => setShowCalendarModal(false)} className="p-2 bg-stone-100 rounded-full"><X/></button>
               </div>
-
               <div className="space-y-4">
-                <input type="date" className="w-full p-4 bg-stone-100 rounded-2xl font-bold" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-                
-                <div className="grid grid-cols-2 gap-3">
-                   <div className="p-4 bg-stone-50 rounded-2xl flex items-center gap-2">
-                      <Clock size={18} className="text-stone-400" />
-                      <input type="time" className="bg-transparent font-bold outline-none" value={eventTime} onChange={e => setEventTime(e.target.value)} />
-                   </div>
-                   <div className="p-4 bg-stone-50 rounded-2xl flex items-center gap-2 text-stone-400 font-bold text-sm">
-                      <Check size={18} /> Auto Remind
-                   </div>
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                  {EVENT_TYPES.map(type => (
-                    <button key={type.id} onClick={() => setEventType(type.id)} className={cn("p-3 rounded-2xl border-2 transition-all min-w-[70px] flex flex-col items-center gap-1", eventType === type.id ? "border-blue-500 bg-blue-50" : "border-stone-100")}>
-                      <div className={cn("p-2 rounded-lg", type.color)}>{type.icon}</div>
-                      <span className="text-[9px] font-black uppercase">{type.label}</span>
-                    </button>
-                  ))}
-                </div>
-
+                <input type="date" className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold" value={eventDate} onChange={e => setEventDate(e.target.value)} />
                 <div className="relative">
                   <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
-                  <input type="text" placeholder="Location..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl" value={eventLocation} onChange={(e) => searchLocation(e.target.value)} />
+                  <input type="text" placeholder="Search address..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none" value={eventLocation} onChange={e => handleLocationInput(e.target.value)} />
+                  {suggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-white shadow-2xl rounded-2xl mt-2 z-50 overflow-hidden border border-stone-100">
+                      {suggestions.map((s, i) => (
+                        <div key={i} onClick={() => selectSuggestion(s)} className="p-4 hover:bg-blue-50 cursor-pointer text-sm border-b border-stone-50">{s.display_name}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <div className="h-32 rounded-3xl overflow-hidden border-2 border-stone-100">
+                <div className="h-40 rounded-2xl overflow-hidden shadow-inner border border-stone-100">
                   <MapContainer center={coords} zoom={13} style={{height:'100%', width:'100%'}} zoomControl={false}>
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <Marker position={coords} />
                     <ChangeView center={coords} />
                   </MapContainer>
                 </div>
-
-                <textarea placeholder="Notes..." className="w-full p-4 bg-stone-100 rounded-2xl h-24 resize-none" value={eventNote} onChange={(e) => setEventNote(e.target.value)} />
+                <button onClick={saveToCalendar} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200">Save to Calendar</button>
               </div>
-
-              <button onClick={saveToCalendar} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black mt-6 shadow-xl shadow-blue-200 active:scale-95 transition-all">Save Event</button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* البنر السفلي (مرفوع للأعلى) */}
-      <div className="fixed bottom-44 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
-        <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
-          <button onClick={addNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-sm active:scale-90 transition-all shadow-md">
-            <Plus size={18} strokeWidth={3} />
-            <span>ADD IDEA</span>
-          </button>
-          <div className="flex gap-2 pr-2">
-            <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-stone-800 text-white rounded-full active:scale-90">
-              <ImageIcon size={22} />
-            </button>
-            <button onClick={() => toast.success('Syncing with Cloud...')} className="p-4 bg-emerald-500 text-white rounded-full active:scale-90">
-              <Save size={22} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleUpload} />
+      <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleUpload} />
     </div>
   );
 }
