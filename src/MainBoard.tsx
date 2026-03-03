@@ -7,7 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 
-// الاستيراد من المسار الصحيح الذي أنشأناه أعلاه
+// الاستيراد من ملف الفايربيس
 import { db, storage, auth } from '../services/firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -23,7 +23,7 @@ interface BoardElement {
   rotation: number;
 }
 
-export default function BoardPage() {
+export default function MainBoard() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [elements, setElements] = useState<BoardElement[]>([]);
@@ -49,13 +49,13 @@ export default function BoardPage() {
     reader.onload = async (ev) => {
       const base64 = ev.target?.result as string;
       const id = `img_${Date.now()}`;
-      toast.loading('جاري الرفع...', { id: 'up' });
+      toast.loading('جاري رفع الصورة...', { id: 'up' });
       try {
         const sRef = ref(storage, `board/${userId}/${id}`);
         await uploadString(sRef, base64, 'data_url');
         const url = await getDownloadURL(sRef);
         setElements(prev => [...prev, { id, type: 'image', content: url, x: 100, y: 100, width: 250, rotation: 0 }]);
-        toast.success('تمت الإضافة', { id: 'up' });
+        toast.success('تم الرفع', { id: 'up' });
       } catch { toast.error('خطأ في الرفع', { id: 'up' }); }
     };
     reader.readAsDataURL(file);
@@ -81,7 +81,7 @@ export default function BoardPage() {
       <div className="absolute inset-0 z-0" style={{ backgroundColor: '#bc8a5f', backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }} />
       
       <div className="absolute top-6 left-6 z-[100]">
-        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 rounded-2xl shadow-xl border active:scale-90 transition-all">
+        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 rounded-2xl shadow-xl active:scale-90 transition-all">
           <ChevronLeft size={24} />
         </button>
       </div>
@@ -93,7 +93,7 @@ export default function BoardPage() {
               key={el.id} drag dragMomentum={false}
               onDragStart={() => setActiveId(el.id)}
               onClick={(e) => { e.stopPropagation(); setActiveId(el.id); }}
-              className={cn("absolute z-20 p-4 cursor-grab active:cursor-grabbing", activeId === el.id ? "z-50" : "z-20")}
+              className={cn("absolute z-20 p-4", activeId === el.id ? "z-50" : "z-20")}
               style={{ x: el.x, y: el.y, width: el.width, rotate: el.rotation }}
             >
               {activeId === el.id && (
