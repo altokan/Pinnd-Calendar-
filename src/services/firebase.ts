@@ -2,8 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging } from "firebase/messaging";
 
-// إعدادات الفايربيس الخاصة بمشروعك
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,14 +13,16 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// تهيئة التطبيق
-const app = initializeApp(firebaseConfig);
+// هذا المتغير هو ما يفشل الـ Build بسببه في SignupPage
+export const isFirebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 
-// تهيئة الخدمات وتصديرها
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// تهيئة Firestore مع خاصية الكاش لضمان التحريك السلس وحفظ المواقع
+// تصدير messaging لملف push.ts
+export const messaging = typeof window !== "undefined" ? getMessaging(app) : null;
+
 let db: any;
 try {
   db = initializeFirestore(app, {
