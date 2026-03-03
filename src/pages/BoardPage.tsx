@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trash2, ChevronLeft, ImageIcon, Plus, Calendar, 
-  Loader2, Save, X, Check, MapPin 
+  Loader2, Save, X, Check, MapPin, Edit3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
@@ -109,7 +109,6 @@ export default function BoardPage() {
     } else { setSuggestions([]); }
   };
 
-  // دالة حفظ النوتة كحدث في التقويم تلقائياً
   const saveToCalendar = async () => {
     if (!eventDate || !eventTitle) {
       toast.error('Title and Date required');
@@ -225,43 +224,56 @@ export default function BoardPage() {
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
-              className="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh]"
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh]"
             >
               <h3 className="text-2xl font-black text-stone-800 mb-6">Create Event</h3>
               
               <div className="space-y-4">
-                <input 
-                  type="text" placeholder="Event Title" 
-                  className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold"
-                  value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}
-                />
-
-                <input 
-                  type="date" 
-                  className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold"
-                  value={eventDate} onChange={(e) => setEventDate(e.target.value)}
-                />
-
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
+                {/* Title Input */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Event Title</label>
                   <input 
-                    type="text" placeholder="Event Location" 
-                    className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none"
-                    value={eventLocation} onChange={(e) => handleLocationSearch(e.target.value)}
+                    type="text" placeholder="Enter title..." 
+                    className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
+                    value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}
                   />
-                  {suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[1200] border mt-1 overflow-hidden">
-                      {suggestions.map((s, i) => (
-                        <div key={i} onClick={() => { 
-                          setEventLocation(s.display_name); 
-                          setCoords([parseFloat(s.lat), parseFloat(s.lon)]); 
-                          setSuggestions([]); 
-                        }} className="p-4 hover:bg-blue-50 text-xs cursor-pointer border-b last:border-0">{s.display_name}</div>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
+                {/* Date Input */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Pick Date</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
+                    value={eventDate} onChange={(e) => setEventDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Location Input */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
+                    <input 
+                      type="text" placeholder="Search address..." 
+                      className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none font-bold text-stone-700"
+                      value={eventLocation} onChange={(e) => handleLocationSearch(e.target.value)}
+                    />
+                    {suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[1200] border mt-1 overflow-hidden">
+                        {suggestions.map((s, i) => (
+                          <div key={i} onClick={() => { 
+                            setEventLocation(s.display_name); 
+                            setCoords([parseFloat(s.lat), parseFloat(s.lon)]); 
+                            setSuggestions([]); 
+                          }} className="p-4 hover:bg-blue-50 text-xs cursor-pointer border-b last:border-0">{s.display_name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Map */}
                 <div className="h-32 rounded-2xl overflow-hidden border">
                   <MapContainer center={coords} zoom={13} style={{height:'100%', width:'100%'}} zoomControl={false}>
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
@@ -270,15 +282,21 @@ export default function BoardPage() {
                   </MapContainer>
                 </div>
 
-                <textarea 
-                  placeholder="Extra notes..."
-                  className="w-full p-4 bg-stone-100 rounded-2xl h-24 outline-none resize-none"
-                  value={eventNote} onChange={(e) => setEventNote(e.target.value)}
-                />
+                {/* Notes Input */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-1">Additional Notes</label>
+                  <textarea 
+                    placeholder="Write something extra..."
+                    className="w-full p-4 bg-stone-100 rounded-2xl h-24 outline-none resize-none font-medium text-stone-700"
+                    value={eventNote} onChange={(e) => setEventNote(e.target.value)}
+                  />
+                </div>
 
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => setShowCalendarModal(false)} className="flex-1 py-4 bg-stone-100 text-stone-600 rounded-2xl font-bold">Cancel</button>
-                  <button onClick={saveToCalendar} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"><Check size={20} /> Save</button>
+                  <button onClick={saveToCalendar} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-blue-700 transition-colors">
+                    <Check size={20} /> Save Event
+                  </button>
                 </div>
               </div>
             </motion.div>
