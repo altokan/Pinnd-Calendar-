@@ -1,167 +1,230 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronLeft, Calendar as CalendarIcon, Clock, Trash2, 
-  Loader2, Plus, MapPin, AlignLeft, List, Grid 
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
+  Trash2, Loader2, MapPin, AlignLeft, List, Grid, X 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
 import { doc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 
-/* دالة مساعدة للتنسيق */
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 export default function CalendarPage() {
   const navigate = useNavigate();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('timeline'); // حالة اختيار العرض
+  const [viewMode, setViewMode] = useState<'traditional' | 'timeline'>('traditional');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
   const userId = auth.currentUser?.uid || "guest";
   const eventDocRef = doc(db, "events", userId);
 
   useEffect(() => {
     const unsub = onSnapshot(eventDocRef, (d) => {
       if (d.exists()) {
-        const sortedEvents = (d.data().events || []).sort((a: any, b: any) => 
+        const sorted = (d.data().events || []).sort((a: any, b: any) => 
           new Date(a.date).getTime() - new Date(b.date).getTime()
         );
-        setEvents(sortedEvents);
+        setEvents(sorted);
       }
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
   }, [userId]);
 
+  // حسابات التقويم التقليدي
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  
+  const calendarDays = [];
+  for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(null);
+  for (let i = 1; i <= daysInMonth(currentDate.getFullYear(), currentDate.getMonth()); i++) calendarDays.push(i);
+
+  const getEventsForDay = (day: number) => {
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return events.filter(e => e.date === dateStr);
+  };
+
   const deleteEvent = async (event: any) => {
     if (!window.confirm("Delete this event?")) return;
     try {
       await updateDoc(eventDocRef, { events: arrayRemove(event) });
-      toast.success('Event deleted');
-    } catch (error) {
-      toast.error('Failed to delete');
-    }
+      toast.success('Deleted');
+    } catch (error) { toast.error('Error'); }
   };
 
-  if (loading) return (
-    <div className="fixed inset-0 bg-stone-50 flex items-center justify-center">
-      <Loader2 className="animate-spin text-stone-400" size={40} />
-    </div>
-  );
+  if (loading) return <div className="fixed inset-0 bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" /></div>;
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-32">
+    <div className="min-h-screen bg-stone-50 pb-20">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-stone-200 px-6 py-6 sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="bg-white border-b border-stone-200 px-6 py-6 sticky top-0 z-[100]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="p-3 bg-stone-100 rounded-2xl active:scale-90 transition-all">
             <ChevronLeft size={24} />
           </button>
 
-          {/* تبديل طريقة العرض */}
-          <div className="flex bg-stone-100 p-1 rounded-2xl">
+          <div className="flex bg-stone-100 p-1 rounded-2xl shadow-inner">
             <button 
-              onClick={() => setViewMode('timeline')}
+              onClick={() => setViewMode('traditional')} 
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                viewMode === 'timeline' ? "bg-white shadow-sm text-blue-600" : "text-stone-400"
+                "flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-black transition-all", 
+                viewMode === 'traditional' ? "bg-white shadow-md text-blue-600" : "text-stone-400"
               )}
             >
-              <List size={18} />
-              <span>Timeline</span>
+              <Grid size={18} /><span>Calendar</span>
             </button>
             <button 
-              onClick={() => setViewMode('grid')}
+              onClick={() => setViewMode('timeline')} 
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                viewMode === 'grid' ? "bg-white shadow-sm text-blue-600" : "text-stone-400"
+                "flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-black transition-all", 
+                viewMode === 'timeline' ? "bg-white shadow-md text-blue-600" : "text-stone-400"
               )}
             >
-              <Grid size={18} />
-              <span>Calendar</span>
+              <List size={18} /><span>Timeline</span>
             </button>
           </div>
 
-          <button onClick={() => navigate('/map')} className="p-3 bg-blue-50 text-blue-600 rounded-2xl active:scale-90">
+          <button onClick={() => navigate('/map')} className="p-3 bg-blue-50 text-blue-600 rounded-2xl active:scale-90 shadow-sm">
             <MapPin size={24} />
           </button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 pt-10">
-        {events.length === 0 ? (
-          <div className="text-center py-20 text-stone-400">
-            <CalendarIcon size={48} className="mx-auto mb-4 opacity-20" />
-            <p>No events found</p>
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
-            {viewMode === 'timeline' ? (
-              /* عرض التايم لاين */
-              <motion.div 
-                key="timeline"
-                initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-                className="space-y-8 relative max-w-2xl mx-auto"
-              >
-                <div className="absolute left-8 top-2 bottom-2 w-0.5 bg-stone-200 -z-10" />
-                {events.map((event, index) => (
-                  <div key={event.id} className="flex gap-6 group">
-                    <div className="w-16 h-16 bg-white border-4 border-stone-50 rounded-full shadow-lg flex flex-col items-center justify-center z-10">
-                      <span className="text-[10px] font-black text-blue-500 uppercase">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</span>
-                      <span className="text-xl font-black text-stone-800">{new Date(event.date).getDate()}</span>
-                    </div>
-                    <div className="flex-1 bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100 relative hover:shadow-md transition-all">
-                      {event.image && <img src={event.image} className="w-full h-40 object-cover rounded-3xl mb-4" />}
-                      <h3 className="font-bold text-lg text-stone-800">{event.title}</h3>
-                      {event.location && <div className="flex items-center gap-2 text-stone-500 text-sm mt-2 bg-stone-50 p-2 rounded-lg w-fit"><MapPin size={14}/>{event.location}</div>}
-                      {event.extraNote && <p className="text-stone-400 text-sm italic mt-2 flex items-start gap-2"><AlignLeft size={14} className="mt-1"/>{event.extraNote}</p>}
-                      <button onClick={() => deleteEvent(event)} className="absolute top-4 right-4 text-stone-200 hover:text-red-500"><Trash2 size={18}/></button>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            ) : (
-              /* عرض التقويم العادي (Grid View) */
-              <motion.div 
-                key="grid"
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-              >
-                {events.map((event) => (
-                  <div key={event.id} className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-stone-100 flex flex-col">
-                    <div className="h-32 bg-stone-100 relative">
-                      {event.image ? (
-                        <img src={event.image} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-stone-300"><CalendarIcon size={32}/></div>
-                      )}
-                      <div className="absolute top-3 left-3 bg-white/90 backdrop-blur p-2 rounded-xl text-center min-w-[45px] shadow-sm">
-                        <div className="text-[10px] font-bold text-blue-500 uppercase leading-none">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</div>
-                        <div className="text-lg font-black text-stone-800 leading-none mt-1">{new Date(event.date).getDate()}</div>
-                      </div>
-                    </div>
-                    <div className="p-5 flex-1 flex flex-col">
-                      <h3 className="font-bold text-stone-800 mb-2 line-clamp-2">{event.title}</h3>
-                      {event.location && <div className="flex items-center gap-1.5 text-stone-400 text-xs mb-3 truncate"><MapPin size={12}/>{event.location}</div>}
-                      <div className="mt-auto pt-4 border-t border-stone-50 flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-stone-300 uppercase tracking-widest flex items-center gap-1"><Clock size={10}/> Scheduled</span>
-                        <button onClick={() => deleteEvent(event)} className="p-2 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16}/></button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-      </div>
+      <div className="max-w-5xl mx-auto px-6 pt-10">
+        <AnimatePresence mode="wait">
+          {viewMode === 'traditional' ? (
+            <motion.div key="trad" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {/* اختيار الشهر */}
+              <div className="flex items-center justify-between mb-10">
+                <h2 className="text-4xl font-black text-stone-800 tracking-tighter">
+                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h2>
+                <div className="flex gap-3">
+                  <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-3 bg-white rounded-2xl shadow-sm border border-stone-100 active:scale-95"><ChevronLeft size={20}/></button>
+                  <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-3 bg-white rounded-2xl shadow-sm border border-stone-100 active:scale-95"><ChevronRight size={20}/></button>
+                </div>
+              </div>
 
-      {/* زر إضافة سريع */}
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100]">
-        <button onClick={() => navigate('/board')} className="flex items-center gap-3 px-8 py-5 bg-stone-900 text-white rounded-full font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all">
-          <Plus size={20} />
-          <span>New Idea</span>
-        </button>
+              {/* شبكة التقويم العادية */}
+              <div className="grid grid-cols-7 gap-3 mb-10">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                  <div key={d} className="text-center text-xs font-black text-stone-300 uppercase tracking-widest pb-4">{d}</div>
+                ))}
+                {calendarDays.map((day, i) => {
+                  const dayEvents = day ? getEventsForDay(day) : [];
+                  const isToday = day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() && currentDate.getFullYear() === new Date().getFullYear();
+                  
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => day && setSelectedDay(day.toString())}
+                      className={cn(
+                        "aspect-square rounded-[2rem] p-4 relative transition-all border-2 flex flex-col items-start justify-start",
+                        day ? "bg-white border-stone-100 hover:border-blue-200 cursor-pointer shadow-sm" : "bg-transparent border-transparent pointer-events-none",
+                        isToday && "bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-100"
+                      )}
+                    >
+                      {day && (
+                        <>
+                          <span className="font-black text-xl">{day}</span>
+                          <div className="mt-auto flex flex-wrap gap-1">
+                            {dayEvents.map((_, idx) => (
+                              <div key={idx} className={cn("w-2 h-2 rounded-full", isToday ? "bg-white/50" : "bg-blue-400")} />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* مودال الأحداث لليوم المختار */}
+              <AnimatePresence>
+                {selectedDay && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 100 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: 100 }}
+                    className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:p-6"
+                  >
+                    <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setSelectedDay(null)} />
+                    <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl relative z-10 overflow-hidden">
+                      <div className="flex justify-between items-center mb-8">
+                        <div>
+                          <h3 className="text-2xl font-black text-stone-800">
+                            {selectedDay} {currentDate.toLocaleString('default', { month: 'long' })}
+                          </h3>
+                          <p className="text-stone-400 font-bold text-sm uppercase tracking-widest">Scheduled Events</p>
+                        </div>
+                        <button onClick={() => setSelectedDay(null)} className="p-3 bg-stone-100 rounded-full text-stone-400 hover:bg-stone-200 transition-colors">
+                          <X size={20} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {getEventsForDay(parseInt(selectedDay)).length > 0 ? (
+                          getEventsForDay(parseInt(selectedDay)).map(ev => (
+                            <div key={ev.id} className="group flex items-center justify-between p-5 bg-stone-50 rounded-[2rem] border border-stone-100 transition-all hover:bg-white hover:shadow-lg">
+                              <div className="flex items-center gap-5">
+                                {ev.image ? (
+                                  <img src={ev.image} className="w-16 h-16 rounded-[1.5rem] object-cover shadow-sm" alt="" />
+                                ) : (
+                                  <div className="w-16 h-16 rounded-[1.5rem] bg-stone-200 flex items-center justify-center text-stone-400"><CalendarIcon size={24}/></div>
+                                )}
+                                <div>
+                                  <p className="font-black text-stone-800 text-lg">{ev.title}</p>
+                                  <div className="flex flex-col gap-1 mt-1">
+                                    {ev.location && <div className="flex items-center gap-1 text-xs text-stone-400 font-bold"><MapPin size={12} className="text-red-400"/> {ev.location}</div>}
+                                    {ev.extraNote && <div className="flex items-center gap-1 text-xs text-stone-400 italic"><AlignLeft size={12}/> {ev.extraNote}</div>}
+                                  </div>
+                                </div>
+                              </div>
+                              <button onClick={() => deleteEvent(ev)} className="p-3 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all">
+                                <Trash2 size={20}/>
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-10">
+                            <CalendarIcon size={40} className="mx-auto text-stone-200 mb-3" />
+                            <p className="text-stone-400 font-bold italic">No plans for this day yet.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ) : (
+            /* عرض التايم لاين */
+            <motion.div key="time" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10 relative max-w-2xl mx-auto pb-20">
+               <div className="absolute left-10 top-2 bottom-2 w-0.5 bg-stone-200 -z-10" />
+               {events.map((event) => (
+                 <div key={event.id} className="flex gap-8 group">
+                   <div className="w-20 h-20 bg-white border-[6px] border-stone-50 rounded-[2rem] shadow-xl flex flex-col items-center justify-center z-10 shrink-0 group-hover:scale-110 transition-transform">
+                     <span className="text-[10px] font-black text-blue-500 uppercase leading-none mb-1">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</span>
+                     <span className="text-2xl font-black text-stone-800 leading-none">{new Date(event.date).getDate()}</span>
+                   </div>
+                   <div className="flex-1 bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100 relative hover:shadow-xl transition-all">
+                     {event.image && <img src={event.image} className="w-full h-48 object-cover rounded-[1.8rem] mb-5 shadow-inner" alt="" />}
+                     <h3 className="font-black text-xl text-stone-800 pr-10">{event.title}</h3>
+                     <div className="space-y-2 mt-3">
+                        {event.location && <div className="flex items-center gap-2 text-stone-500 text-sm font-bold bg-stone-50 p-2 rounded-xl w-fit"><MapPin size={14} className="text-red-400"/>{event.location}</div>}
+                        {event.extraNote && <p className="text-stone-400 text-sm italic flex items-start gap-2 pt-1"><AlignLeft size={16} className="mt-0.5 shrink-0"/>{event.extraNote}</p>}
+                     </div>
+                     <button onClick={() => deleteEvent(event)} className="absolute top-6 right-6 p-2 text-stone-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20}/></button>
+                   </div>
+                 </div>
+               ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
