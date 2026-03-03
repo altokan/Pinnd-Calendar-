@@ -99,7 +99,7 @@ const MapsPage: React.FC = () => {
         )}
       </div>
 
-      {/* 1. قائمة الأحداث - تظهر في منتصف الصفحة (Image 1 Style) */}
+      {/* 1. قائمة الأحداث - تظهر في منتصف الصفحة */}
       <AnimatePresence>
         {activeGroup && !selectedEvent && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-md">
@@ -128,7 +128,7 @@ const MapsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* 2. تفاصيل الحدث الكاملة - ديناميكية وكبيرة (Image 2 Style) */}
+      {/* 2. تفاصيل الحدث الكاملة */}
       <AnimatePresence>
         {selectedEvent && (
           <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xl">
@@ -194,12 +194,14 @@ const MapsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Floating Info */}
-      <div className="absolute bottom-10 left-10 z-[500] bg-stone-900/90 backdrop-blur-2xl p-5 rounded-[2.5rem] border border-white/20 shadow-4xl flex items-center gap-4">
-        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white"><Info size={22} /></div>
-        <div>
-          <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest leading-none mb-1">EXPLORING</p>
-          <p className="text-xl font-black text-white leading-none">{events.length} ACTIVE PINS</p>
+      {/* Floating Info - التعديل هنا لتصغير الحجم بشكل كبير */}
+      <div className="absolute bottom-6 left-6 z-[500] bg-stone-900/90 backdrop-blur-2xl p-2.5 px-4 rounded-full border border-white/20 shadow-xl flex items-center gap-3 active:scale-95 transition-transform">
+        <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white shrink-0">
+          <MapPin size={14} />
+        </div>
+        <div className="flex flex-col">
+          <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest leading-none mb-0.5">Exploring</p>
+          <p className="text-sm font-black text-white leading-none tracking-tight">{events.length} Active Pins</p>
         </div>
       </div>
     </div>
