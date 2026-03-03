@@ -1,282 +1,255 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
   Trash2, Loader2, MapPin, AlignLeft, List, Grid, X, 
-  Clock, Bell, Image as ImageIcon, Utensils, Stethoscope, PartyPopper, Briefcase, Plus, Check
+  Clock, Bell, Image as ImageIcon, Check, Edit2, Upload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../services/firebase';
+import { db, storage, auth } from '../services/firebase';
 import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion, setDoc } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-// أنواع المواعيد
-const EVENT_TYPES = [
-  { id: 'restaurant', icon: <Utensils size={18} />, label: 'Restaurant', color: 'bg-orange-100 text-orange-600' },
-  { id: 'doctor', icon: <Stethoscope size={18} />, label: 'Doctor', color: 'bg-red-100 text-red-600' },
-  { id: 'party', icon: <PartyPopper size={18} />, label: 'Party', color: 'bg-purple-100 text-purple-600' },
-  { id: 'work', icon: <Briefcase size={18} />, label: 'Work', color: 'bg-blue-100 text-blue-600' },
-  { id: 'other', icon: <CalendarIcon size={18} />, label: 'Other', color: 'bg-stone-100 text-stone-600' },
-];
-
-function ChangeView({ center }: { center: [number, number] }) {
-  const map = useMap();
-  map.setView(center, 14);
-  return null;
-}
-
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'traditional' | 'timeline'>('traditional');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  // حالات إضافة حدث جديد
-  const [newTitle, setNewTitle] = useState('');
-  const [newTime, setNewTime] = useState('12:00');
-  const [newType, setNewType] = useState('other');
-  const [newLocation, setNewLocation] = useState('');
-  const [newNote, setNewNote] = useState('');
-  const [newCoords, setNewCoords] = useState<[number, number]>([24.7136, 46.6753]);
+  
+  // Edit/Add States
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [tempTitle, setTempTitle] = useState('');
+  const [tempLocation, setTempLocation] = useState('');
+  const [tempImage, setTempImage] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [tempCoords, setTempCoords] = useState<[number, number]>([24.7136, 46.6753]);
 
   const userId = auth.currentUser?.uid || "guest";
   const eventDocRef = doc(db, "events", userId);
 
   useEffect(() => {
     const unsub = onSnapshot(eventDocRef, (d) => {
-      if (d.exists()) {
-        const sorted = (d.data().events || []).sort((a: any, b: any) => 
-          new Date(a.date + ' ' + a.time).getTime() - new Date(b.date + ' ' + b.time).getTime()
-        );
-        setEvents(sorted);
-      }
+      if (d.exists()) setEvents(d.data().events || []);
       setLoading(false);
     });
     return () => unsub();
   }, [userId]);
 
-  const handleAddEvent = async () => {
-    if (!newTitle || !selectedDay) return toast.error('Please enter a title');
-    
+  const handleLocationSearch = async (val: string) => {
+    setTempLocation(val);
+    if (val.length > 3) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
+      const data = await res.json();
+      setSuggestions(data.slice(0, 3));
+    }
+  };
+
+  const handleImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setTempImage(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const saveEditedEvent = async () => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-    const newEvent = {
-      id: `ev_${Date.now()}`,
-      title: newTitle,
+    let finalImageUrl = tempImage;
+
+    // Upload to Firebase if it's base64
+    if (tempImage?.startsWith('data:image')) {
+      const sRef = ref(storage, `events/${userId}/${Date.now()}`);
+      await uploadString(sRef, tempImage, 'data_url');
+      finalImageUrl = await getDownloadURL(sRef);
+    }
+
+    const updatedEvent = {
+      id: editingEvent?.id || `ev_${Date.now()}`,
+      title: tempTitle,
+      location: tempLocation,
       date: dateStr,
-      time: newTime,
-      type: newType,
-      location: newLocation,
-      lat: newCoords[0],
-      lng: newCoords[1],
-      extraNote: newNote,
-      createdAt: new Date().toISOString()
+      time: "12:00",
+      image: finalImageUrl,
+      lat: tempCoords[0],
+      lng: tempCoords[1]
     };
 
-    try {
-      await setDoc(eventDocRef, { events: arrayUnion(newEvent) }, { merge: true });
-      toast.success('Event Saved');
-      setShowAddModal(false);
-      resetForm();
-    } catch (e) { toast.error('Error saving'); }
+    if (editingEvent) {
+      const filtered = events.filter(e => e.id !== editingEvent.id);
+      await setDoc(eventDocRef, { events: [...filtered, updatedEvent] });
+    } else {
+      await updateDoc(eventDocRef, { events: arrayUnion(updatedEvent) });
+    }
+    
+    setEditingEvent(null);
+    setTempTitle(''); setTempImage(null);
+    toast.success('Saved!');
   };
 
-  const resetForm = () => {
-    setNewTitle(''); setNewTime('12:00'); setNewType('other'); setNewLocation(''); setNewNote('');
-  };
-
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  // التقويم منطق
+  const daysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   const calendarDays = [];
-  for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(null);
+  for (let i = 0; i < firstDay; i++) calendarDays.push(null);
   for (let i = 1; i <= daysInMonth(currentDate.getFullYear(), currentDate.getMonth()); i++) calendarDays.push(i);
 
-  const getEventsForDay = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return events.filter(e => e.date === dateStr);
-  };
-
-  if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-stone-50"><Loader2 className="animate-spin text-stone-400" /></div>;
+  if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-stone-50 text-stone-400"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b border-stone-200 px-6 py-6 sticky top-0 z-[100]">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="p-3 bg-stone-100 rounded-2xl"><ChevronLeft size={24} /></button>
+    <div className="min-h-screen bg-stone-50 pb-10">
+      {/* Header - متجاوب */}
+      <div className="bg-white/80 backdrop-blur-xl border-b border-stone-200 p-4 md:p-6 sticky top-0 z-[100]">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <button onClick={() => navigate(-1)} className="p-3 bg-stone-100 rounded-2xl active:scale-90"><ChevronLeft/></button>
           
-          <div className="flex bg-stone-100 p-1 rounded-2xl">
-            <button onClick={() => setViewMode('traditional')} className={cn("px-6 py-2 rounded-xl text-sm font-black transition-all", viewMode === 'traditional' ? "bg-white shadow-md text-blue-600" : "text-stone-400")}>Calendar</button>
-            <button onClick={() => setViewMode('timeline')} className={cn("px-6 py-2 rounded-xl text-sm font-black transition-all", viewMode === 'timeline' ? "bg-white shadow-md text-blue-600" : "text-stone-400")}>Timeline</button>
+          <div className="flex bg-stone-100 p-1 rounded-2xl flex-1 max-w-[300px]">
+            <button onClick={() => setViewMode('traditional')} className={cn("flex-1 py-2 rounded-xl text-xs font-black transition-all", viewMode === 'traditional' ? "bg-white shadow-md text-blue-600" : "text-stone-400")}>Grid</button>
+            <button onClick={() => setViewMode('timeline')} className={cn("flex-1 py-2 rounded-xl text-xs font-black transition-all", viewMode === 'timeline' ? "bg-white shadow-md text-blue-600" : "text-stone-400")}>Timeline</button>
           </div>
 
-          <button onClick={() => navigate('/map')} className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><MapPin size={24} /></button>
+          <button onClick={() => navigate('/map')} className="p-3 bg-blue-50 text-blue-600 rounded-2xl active:scale-90"><MapPin/></button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 pt-10">
-        {viewMode === 'traditional' && (
-          <>
-            <div className="flex items-center justify-between mb-10">
-              <h2 className="text-4xl font-black text-stone-800 tracking-tighter">
+      <div className="max-w-6xl mx-auto px-4 pt-8">
+        {viewMode === 'traditional' ? (
+          <div className="bg-white rounded-[3rem] p-4 md:p-10 shadow-sm border border-stone-100 overflow-hidden">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl md:text-4xl font-black text-stone-800 tracking-tighter">
                 {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
               </h2>
               <div className="flex gap-2">
-                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-3 bg-white rounded-xl shadow-sm"><ChevronLeft/></button>
-                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-3 bg-white rounded-xl shadow-sm"><ChevronRight/></button>
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 bg-stone-50 rounded-xl"><ChevronLeft size={20}/></button>
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 bg-stone-50 rounded-xl"><ChevronRight size={20}/></button>
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-3">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                <div key={d} className="text-center text-xs font-black text-stone-300 uppercase pb-4">{d}</div>
+            <div className="grid grid-cols-7 gap-1 md:gap-4">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                <div key={d} className="text-center text-[10px] font-black text-stone-300 uppercase py-2">{d}</div>
               ))}
               {calendarDays.map((day, i) => {
-                const dayEvents = day ? getEventsForDay(day) : [];
+                const dayStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const hasEvents = events.some(e => e.date === dayStr);
+                const isToday = day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth();
+
                 return (
                   <div 
-                    key={i} 
-                    onClick={() => day && setSelectedDay(day)}
+                    key={i} onClick={() => day && setSelectedDay(day)}
                     className={cn(
-                      "aspect-square rounded-[2rem] p-4 relative border-2 flex flex-col items-start justify-between transition-all",
-                      day ? "bg-white border-stone-100 hover:border-blue-200 cursor-pointer shadow-sm" : "bg-transparent border-transparent",
-                      selectedDay === day && "border-blue-500 ring-4 ring-blue-50"
+                      "aspect-square rounded-[1.5rem] md:rounded-[2.5rem] p-2 flex flex-col items-center justify-center relative transition-all cursor-pointer border-2",
+                      day ? "bg-white border-stone-50 hover:border-blue-200" : "bg-transparent border-transparent pointer-events-none",
+                      isToday && "bg-blue-50/50 border-blue-100 shadow-[0_0_20px_rgba(59,130,246,0.1)]", // التعديل: ظل خفيف لليوم
+                      selectedDay === day && "border-blue-600"
                     )}
                   >
                     {day && (
                       <>
-                        <span className="font-black text-xl">{day}</span>
-                        <div className="flex gap-1 flex-wrap">
-                          {dayEvents.map((ev, idx) => (
-                            <div key={idx} className="w-2 h-2 rounded-full bg-blue-400" />
-                          ))}
-                        </div>
+                        <span className={cn("text-lg md:text-2xl font-black", isToday ? "text-blue-600" : "text-stone-800")}>{day}</span>
+                        {hasEvents && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1 animate-pulse" />}
                       </>
                     )}
                   </div>
                 );
               })}
             </div>
-          </>
-        )}
-
-        {/* Timeline View (إبقاء الكود كما هو من المرة السابقة) */}
-        {viewMode === 'timeline' && (
-            <div className="space-y-6">
-                {events.map(ev => (
-                    <div key={ev.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm flex items-center gap-6">
-                        <div className="w-16 h-16 bg-blue-50 rounded-full flex flex-col items-center justify-center font-black">
-                            <span className="text-[10px] text-blue-400">{new Date(ev.date).toLocaleString('default', {month:'short'})}</span>
-                            <span>{new Date(ev.date).getDate()}</span>
-                        </div>
-                        <div>
-                            <h3 className="font-black text-xl">{ev.title}</h3>
-                            <p className="text-stone-400 text-sm">{ev.time} • {ev.location}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+          </div>
+        ) : (
+          <div className="space-y-6 max-w-2xl mx-auto">
+             {events.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(ev => (
+               <div key={ev.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100 flex items-center gap-6">
+                 <div className="w-16 h-16 bg-stone-50 rounded-full flex flex-col items-center justify-center font-black">
+                   <span className="text-[10px] text-stone-400 uppercase">{new Date(ev.date).toLocaleString('default', {month:'short'})}</span>
+                   <span className="text-xl">{new Date(ev.date).getDate()}</span>
+                 </div>
+                 <div className="flex-1">
+                   <h3 className="font-black text-lg">{ev.title}</h3>
+                   <div className="flex items-center gap-2 text-stone-400 text-xs mt-1"><MapPin size={12}/>{ev.location}</div>
+                 </div>
+                 {ev.image && <img src={ev.image} className="w-16 h-16 rounded-2xl object-cover" />}
+               </div>
+             ))}
+          </div>
         )}
       </div>
 
-      {/* نافذة إضافة حدث جديد (تظهر عند اختيار يوم) */}
+      {/* مودال تفاصيل اليوم المختار وإضافة/تعديل حدث */}
       <AnimatePresence>
         {selectedDay && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }}
-            className="fixed inset-0 z-[200] flex items-end justify-center p-4"
-          >
-            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setSelectedDay(null)} />
-            <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl relative z-10 max-h-[90vh] overflow-y-auto">
-              
+          <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} className="fixed inset-0 z-[200] flex items-end justify-center p-4">
+            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md" onClick={() => setSelectedDay(null)} />
+            <div className="bg-white w-full max-w-2xl rounded-[3rem] p-6 md:p-10 shadow-2xl relative z-10 max-h-[85vh] overflow-y-auto overflow-x-hidden">
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <h3 className="text-2xl font-black text-stone-800">
-                    {selectedDay} {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </h3>
-                  <p className="text-blue-500 font-bold uppercase text-xs tracking-widest">Add New Event</p>
+                  <h3 className="text-2xl font-black text-stone-800">{selectedDay} {currentDate.toLocaleString('default', { month: 'long' })}</h3>
+                  <p className="text-xs font-black text-blue-500 tracking-[0.2em] uppercase">Day Schedule</p>
                 </div>
                 <button onClick={() => setSelectedDay(null)} className="p-3 bg-stone-100 rounded-full"><X/></button>
               </div>
 
-              <div className="space-y-6">
-                {/* اسم الحدث */}
-                <input 
-                  type="text" placeholder="What's the plan?" 
-                  className="w-full p-6 bg-stone-100 rounded-[2rem] text-xl font-bold border-none outline-none"
-                  value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                />
-
-                {/* الوقت والتنبيه */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-stone-50 rounded-3xl flex items-center gap-3">
-                    <Clock className="text-stone-400" />
-                    <input type="time" className="bg-transparent font-bold outline-none" value={newTime} onChange={e => setNewTime(e.target.value)} />
+              {/* قائمة الأحداث لليوم */}
+              <div className="space-y-4 mb-10">
+                {events.filter(e => e.date === `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`).map(ev => (
+                  <div key={ev.id} className="bg-stone-50 p-5 rounded-[2rem] border border-stone-100 flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                      {ev.image && <img src={ev.image} className="w-14 h-14 rounded-2xl object-cover" />}
+                      <div>
+                        <p className="font-black text-stone-800">{ev.title}</p>
+                        <p className="text-xs text-stone-400 flex items-center gap-1 mt-1"><MapPin size={10}/>{ev.location}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditingEvent(ev); setTempTitle(ev.title); setTempLocation(ev.location); setTempImage(ev.image); }} className="p-3 bg-white text-stone-400 rounded-xl shadow-sm hover:text-blue-600"><Edit2 size={16}/></button>
+                      <button onClick={() => updateDoc(eventDocRef, { events: arrayRemove(ev) })} className="p-3 bg-white text-stone-400 rounded-xl shadow-sm hover:text-red-500"><Trash2 size={16}/></button>
+                    </div>
                   </div>
-                  <button className="p-4 bg-stone-50 rounded-3xl flex items-center gap-3 text-stone-400 font-bold">
-                    <Bell size={20}/> <span>Remind me</span>
-                  </button>
-                </div>
+                ))}
+              </div>
 
-                {/* أنواع المواعيد (الأيقونات) */}
-                <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-                  {EVENT_TYPES.map(type => (
-                    <button 
-                      key={type.id} 
-                      onClick={() => setNewType(type.id)}
-                      className={cn(
-                        "flex flex-col items-center gap-2 p-4 min-w-[80px] rounded-3xl transition-all border-2",
-                        newType === type.id ? "border-blue-500 bg-blue-50 scale-105" : "border-stone-100 bg-white"
-                      )}
-                    >
-                      <div className={cn("p-3 rounded-2xl", type.color)}>{type.icon}</div>
-                      <span className="text-[10px] font-black uppercase">{type.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* العنوان والخريطة */}
-                <div className="space-y-3">
+              {/* قسم إضافة/تعديل حدث */}
+              <div className="bg-blue-50 p-6 rounded-[2.5rem] space-y-4 border border-blue-100 shadow-inner">
+                <h4 className="font-black text-blue-800">{editingEvent ? 'Edit Event' : 'Add New Event'}</h4>
+                <div className="space-y-4">
+                  <input type="text" placeholder="Event name..." className="w-full p-4 bg-white rounded-2xl outline-none font-bold shadow-sm" value={tempTitle} onChange={e => setTempTitle(e.target.value)} />
                   <div className="relative">
-                    <MapPin className="absolute left-4 top-4 text-stone-400" size={18} />
-                    <input 
-                      type="text" placeholder="Add Location..." 
-                      className="w-full p-4 pl-12 bg-stone-100 rounded-2xl outline-none"
-                      value={newLocation} onChange={e => setNewLocation(e.target.value)}
-                    />
+                    <input type="text" placeholder="Search location..." className="w-full p-4 bg-white rounded-2xl outline-none shadow-sm text-sm" value={tempLocation} onChange={e => handleLocationSearch(e.target.value)} />
+                    {suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-2xl mt-1 z-[300] border border-stone-100 overflow-hidden">
+                        {suggestions.map((s, i) => (
+                          <div key={i} onClick={() => { setTempLocation(s.display_name); setTempCoords([parseFloat(s.lat), parseFloat(s.lon)]); setSuggestions([]); }} className="p-3 hover:bg-blue-50 text-xs cursor-pointer border-b border-stone-50">{s.display_name}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="h-40 rounded-[2rem] overflow-hidden border-2 border-stone-50">
-                    <MapContainer center={newCoords} zoom={13} style={{height:'100%', width:'100%'}} zoomControl={false}>
-                      <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                      <Marker position={newCoords} />
-                      <ChangeView center={newCoords} />
-                    </MapContainer>
+                  
+                  {/* رفع الصورة */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center border-2 border-dashed border-blue-200 overflow-hidden">
+                      {tempImage ? <img src={tempImage} className="w-full h-full object-cover" /> : <ImageIcon className="text-blue-300"/>}
+                    </div>
+                    <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-5 py-3 bg-white rounded-xl text-blue-600 font-bold text-xs shadow-sm"><Upload size={14}/> {tempImage ? 'Change Image' : 'Add Image'}</button>
                   </div>
+                  
+                  <button onClick={saveEditedEvent} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                    <Check size={20}/> {editingEvent ? 'Update Changes' : 'Pin to Calendar'}
+                  </button>
+                  {editingEvent && <button onClick={() => setEditingEvent(null)} className="w-full py-2 text-blue-400 font-bold text-xs underline">Cancel Editing</button>}
                 </div>
-
-                {/* ملاحظات */}
-                <textarea 
-                  placeholder="Additional notes..." 
-                  className="w-full p-6 bg-stone-50 rounded-[2rem] outline-none h-32 resize-none"
-                  value={newNote} onChange={e => setNewNote(e.target.value)}
-                />
-
-                <button 
-                  onClick={handleAddEvent}
-                  className="w-full py-6 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-xl shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 transition-all"
-                >
-                  <Check size={24}/> Save Event
-                </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <input type="file" ref={fileRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
     </div>
   );
 }
