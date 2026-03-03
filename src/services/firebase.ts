@@ -2,8 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getMessaging } from "firebase/messaging"; // إضافة هذا السطر
 
+// إعدادات الفايربيس الخاصة بمشروعك
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,16 +13,14 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// المتغير الذي تحتاجه صفحة التسجيل
-export const isFirebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
-
+// تهيئة التطبيق
 const app = initializeApp(firebaseConfig);
+
+// تهيئة الخدمات وتصديرها
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// المتغير الذي يحتاجه ملف push.ts
-export const messaging = typeof window !== "undefined" ? getMessaging(app) : null; 
-
+// تهيئة Firestore مع خاصية الكاش لضمان التحريك السلس وحفظ المواقع
 let db: any;
 try {
   db = initializeFirestore(app, {
