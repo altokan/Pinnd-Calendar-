@@ -10,7 +10,7 @@ import { ThemeProvider } from './ThemeContext';
 /* استيراد المكونات الأساسية */
 import Layout from './components/Layout';
 
-/* استيراد الصفحات بناءً على ملفاتك */
+/* استيراد الصفحات بناءً على هيكل ملفاتك الجديد */
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -18,13 +18,14 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-import BoardPage from './pages/BoardPage'; // تم تغيير الاسم هنا من SketchPage إلى BoardPage
+import BoardPage from './pages/BoardPage'; // تم التعديل هنا لاستيراد الصفحة الجديدة
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AddEventPage from './pages/AddEventPage';
 
 /**
- * مكون حماية المسارات
+ * مكون حماية المسارات (Protected Route)
+ * يمنع الوصول للصفحات إلا بعد تسجيل الدخول
  */
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
   children,
@@ -51,6 +52,7 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <Router>
+          {/* مكون التنبيهات (Toast) */}
           <Toaster 
             position="top-center" 
             toastOptions={{ 
@@ -60,30 +62,38 @@ export default function App() {
           />
 
           <Routes>
-            {/* المسارات العامة */}
+            {/* 1. المسارات العامة (بدون تسجيل دخول) */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             
-            {/* المسارات المحمية داخل الـ Layout */}
+            {/* 2. المسارات المحمية (تحتاج تسجيل دخول) داخل الـ Layout */}
+            
+            {/* الصفحة الرئيسية (التقويم) */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
+            
+            {/* الخرائط */}
             <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
             
-            {/* تم تحديث المسار هنا ليستخدم BoardPage الجديدة */}
+            {/* صفحة اللوحة الجديدة (تم توجيه رابط /sketch إليها لضمان عمل الأزرار الحالية) */}
             <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
             
+            {/* الإشعارات */}
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
+            
+            {/* الملف الشخصي */}
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
             
-            {/* مسار إضافة حدث الجديد */}
+            {/* إضافة حدث جديد */}
             <Route path="/add-event" element={<ProtectedRoute><Layout><AddEventPage /></Layout></ProtectedRoute>} />
             
-            {/* مسار تفاصيل الحدث */}
+            {/* تفاصيل الحدث */}
             <Route path="/event/:id" element={<ProtectedRoute><Layout><EventDetailsPage /></Layout></ProtectedRoute>} />
             
-            {/* صفحة الإدارة */}
+            {/* صفحة الإدارة (للمشرفين فقط) */}
             <Route path="/admin" element={<ProtectedRoute adminOnly><Layout><AdminPage /></Layout></ProtectedRoute>} />
 
+            {/* إعادة توجيه أي مسار غير موجود للرئيسية */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
