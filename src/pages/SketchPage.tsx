@@ -1,10 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { ReactSketchCanvas, ReactSketchCanvasRef } from 'react-sketch-canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Undo, Redo, Trash2, Eraser, PenTool, 
-  ChevronLeft, Type, Image as ImageIcon, Move, Save, 
-  StickyNote, X, Maximize2
+  Trash2, ChevronLeft, ImageIcon, Move, Save, 
+  StickyNote, X, Maximize2, GripHorizontal, Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -16,32 +14,27 @@ interface BoardElement {
   x: number;
   y: number;
   width: number;
-  height: number;
+  rotation: number; // إضافة تدوير بسيط ليعطي شكل واقعي
 }
 
-export default function StudioPage() {
-  const canvasRef = useRef<ReactSketchCanvasRef>(null);
+export default function BoardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // States
-  const [activeTool, setActiveTool] = useState<'pen' | 'eraser' | 'move'>('pen');
   const [elements, setElements] = useState<BoardElement[]>([]);
-  const [strokeColor, setStrokeColor] = useState('#000000');
-  const [strokeWidth, setStrokeWidth] = useState(4);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  // إضافة عنصر (صورة أو نوت)
   const addElement = (type: 'image' | 'note', content: string = '') => {
     const newEl: BoardElement = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      content: content || 'Write something...',
-      x: window.innerWidth / 4,
-      y: window.innerHeight / 4,
-      width: type === 'note' ? 200 : 250,
-      height: type === 'note' ? 200 : 250,
+      content: content || (type === 'note' ? 'اكتب ملاحظتك هنا...' : ''),
+      x: 100 + (elements.length * 10),
+      y: 150 + (elements.length * 10),
+      width: 220,
+      rotation: Math.floor(Math.random() * 6) - 3, // تدوير عشوائي بين -3 و 3 درجات
     };
     setElements([...elements, newEl]);
+    setActiveId(newEl.id);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,106 +46,126 @@ export default function StudioPage() {
     }
   };
 
-  const updateElementSize = (id: string, delta: number) => {
+  const deleteElement = (id: string) => {
+    setElements(elements.filter(el => el.id !== id));
+    setActiveId(null);
+  };
+
+  const updateSize = (id: string, delta: number) => {
     setElements(elements.map(el => 
-      el.id === id ? { ...el, width: Math.max(100, el.width + delta), height: Math.max(100, el.height + delta) } : el
+      el.id === id ? { ...el, width: Math.max(150, el.width + delta) } : el
     ));
   };
 
   return (
-    <div className="fixed inset-0 bg-[#F0F0F0] overflow-hidden touch-none font-sans">
+    <div className="fixed inset-0 overflow-hidden touch-none font-sans select-none">
       
-      {/* 1. Header - زر الرجوع */}
-      <div className="absolute top-6 left-6 z-[100]">
-        <button onClick={() => navigate(-1)} className="p-3 bg-white rounded-2xl shadow-xl border border-stone-200 active:scale-90 transition-all">
+      {/* 1. Background Layer - Corkboard Texture */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{ 
+          backgroundColor: '#bc8a5f',
+          backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')`,
+          boxShadow: 'inset 0 0 100px rgba(0,0,0,0.2)'
+        }}
+      />
+
+      {/* 2. Header */}
+      <div className="absolute top-6 left-6 z-[100] flex items-center gap-4">
+        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-stone-200 active:scale-95">
           <ChevronLeft size={24} className="text-stone-900" />
         </button>
+        <h1 className="text-white font-black tracking-[0.2em] text-sm uppercase drop-shadow-md">Board</h1>
       </div>
 
-      {/* 2. Infinite Board Wrapper */}
-      <div className="w-full h-full overflow-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px]">
-        <div className="relative min-w-[3000px] min-h-[3000px]">
-          
-          {/* Layer: Canvas (Drawing) */}
-          <div className={cn(
-            "absolute inset-0 z-10 transition-opacity",
-            activeTool === 'move' ? "opacity-40 pointer-events-none" : "opacity-100"
-          )}>
-            <ReactSketchCanvas
-              ref={canvasRef}
-              strokeWidth={strokeWidth}
-              strokeColor={strokeColor}
-              canvasColor="transparent"
-              style={{ border: 'none', width: '100%', height: '100%' }}
-            />
-          </div>
-
-          {/* Layer: Dynamic Elements */}
+      {/* 3. Elements Canvas */}
+      <div className="w-full h-full relative overflow-hidden">
+        <AnimatePresence>
           {elements.map((el) => (
             <motion.div
               key={el.id}
               drag
               dragMomentum={false}
-              className="absolute z-20 group touch-none"
-              style={{ left: el.x, top: el.y, width: el.width }}
+              onDragStart={() => setActiveId(el.id)}
+              onClick={() => setActiveId(el.id)}
+              initial={{ scale: 0.5, opacity: 0, rotate: el.rotation }}
+              animate={{ scale: 1, opacity: 1, rotate: el.rotation }}
+              className={cn(
+                "absolute z-20 touch-none p-4",
+                activeId === el.id ? "z-50 cursor-grabbing" : "z-20 cursor-grab"
+              )}
+              style={{ x: el.x, y: el.y, width: el.width }}
             >
-              {el.type === 'note' ? (
-                <div className="bg-yellow-200 p-4 shadow-2xl rounded-lg border-b-4 border-yellow-400 min-h-[100px] relative">
-                  <textarea 
-                    className="bg-transparent border-none outline-none w-full h-full resize-none text-stone-800 font-bold placeholder-yellow-600/50"
-                    placeholder="Note..."
-                    defaultValue={el.content}
-                    style={{ height: 'auto', minHeight: '80px' }}
-                  />
-                </div>
-              ) : (
-                <img src={el.content} className="w-full h-auto rounded-xl shadow-2xl border-4 border-white pointer-events-none" />
+              {/* Element Toolbar */}
+              {activeId === el.id && (
+                <motion.div 
+                  initial={{ y: 5, opacity: 0 }} 
+                  animate={{ y: -50, opacity: 1 }}
+                  className="absolute left-1/2 -translate-x-1/2 bg-stone-900 text-white rounded-xl px-4 py-2 flex items-center gap-4 shadow-2xl border border-white/10"
+                >
+                  <button onClick={() => updateSize(el.id, 40)}><Maximize2 size={16}/></button>
+                  <button onClick={() => deleteElement(el.id)} className="text-rose-400"><Trash2 size={16}/></button>
+                </motion.div>
               )}
 
-              {/* Controls (Delete & Resize) */}
-              <div className="absolute -top-3 -right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => updateElementSize(el.id, 30)} className="p-1.5 bg-blue-500 text-white rounded-full"><Maximize2 size={14}/></button>
-                <button onClick={() => setElements(elements.filter(x => x.id !== el.id))} className="p-1.5 bg-red-500 text-white rounded-full"><X size={14}/></button>
+              {/* Pin Header - شكل الدبوس الصغير */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-600 shadow-md border-b-2 border-red-800 z-30" />
+
+              {/* Content Card */}
+              <div className={cn(
+                "relative rounded-sm transition-all duration-300",
+                el.type === 'note' ? "bg-[#fff9c4] shadow-[5px_5px_15px_rgba(0,0,0,0.3)]" : "bg-white p-2 shadow-[2px_10px_20px_rgba(0,0,0,0.4)]",
+                activeId === el.id && "ring-4 ring-blue-400/30"
+              )}>
+                {el.type === 'note' ? (
+                  <div className="p-5 min-h-[140px] flex flex-col">
+                    <textarea 
+                      className="bg-transparent border-none outline-none w-full flex-1 resize-none text-stone-800 font-medium text-lg placeholder-stone-400/50"
+                      placeholder="..."
+                      defaultValue={el.content}
+                    />
+                  </div>
+                ) : (
+                  <img src={el.content} className="w-full h-auto rounded-sm pointer-events-none" />
+                )}
               </div>
             </motion.div>
           ))}
-        </div>
+        </AnimatePresence>
       </div>
 
-      {/* 3. Mobile Optimized Black Dock */}
-      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] w-[95%] max-w-md">
-        <div className="bg-stone-900/95 backdrop-blur-2xl shadow-2xl rounded-[2rem] p-1.5 flex items-center justify-between border border-white/10">
+      {/* 4. Main Dock - مرتفع للأعلى ومناسب للجوال */}
+      <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
+        <div className="bg-stone-900/95 backdrop-blur-xl shadow-2xl rounded-[2.5rem] p-2 flex items-center justify-between border border-white/10">
           
-          {/* Tools */}
-          <div className="flex items-center gap-0.5">
-            <button onClick={() => setActiveTool('pen')} className={cn("p-3.5 rounded-full transition-all", activeTool === 'pen' ? "bg-white text-stone-900 shadow-md" : "text-stone-500")}>
-              <PenTool size={18} />
-            </button>
-            <button onClick={() => setActiveTool('move')} className={cn("p-3.5 rounded-full transition-all", activeTool === 'move' ? "bg-white text-stone-900 shadow-md" : "text-stone-500")}>
-              <Move size={18} />
-            </button>
-            <button onClick={() => { setActiveTool('eraser'); canvasRef.current?.eraseMode(true); }} className={cn("p-3.5 rounded-full transition-all", activeTool === 'eraser' ? "bg-white text-stone-900 shadow-md" : "text-stone-500")}>
-              <Eraser size={18} />
-            </button>
+          <div className="flex items-center gap-3 pl-3">
+             <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">{elements.length} Elements</span>
           </div>
 
-          {/* Add Content */}
-          <div className="flex items-center gap-1 border-l border-r border-stone-800 px-2 mx-1">
-            <button onClick={() => addElement('note')} className="p-3 text-stone-400 hover:text-white"><StickyNote size={18}/></button>
-            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-stone-400 hover:text-white"><ImageIcon size={18}/></button>
-          </div>
-
-          {/* Settings & Save */}
-          <div className="flex items-center gap-2 pr-2">
+          <div className="flex items-center gap-2">
             <button 
-              onClick={() => canvasRef.current?.exportImage('png').then(img => { const a = document.createElement('a'); a.href = img; a.download='studio.png'; a.click(); })}
-              className="p-3.5 bg-white text-stone-900 rounded-full shadow-lg active:scale-90"
+              onClick={() => addElement('note')} 
+              className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-black text-xs shadow-lg active:scale-90"
             >
-              <Save size={18} />
+              <Plus size={16} />
+              <span>NOTE</span>
             </button>
-            <button onClick={() => {if(confirm('Reset?')) {setElements([]); canvasRef.current?.clearCanvas()}}} className="p-2 text-rose-500/50 hover:text-rose-500">
-              <Trash2 size={16} />
+            
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="p-4 bg-stone-800 text-white rounded-full active:scale-90 shadow-md"
+            >
+              <ImageIcon size={20} />
             </button>
+          </div>
+
+          <div className="pr-1">
+             <button 
+                onClick={() => alert('Saved to Board!')} 
+                className="p-4 bg-emerald-500 text-white rounded-full shadow-lg"
+              >
+                <Save size={18} />
+             </button>
           </div>
         </div>
       </div>
