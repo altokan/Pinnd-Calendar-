@@ -7,91 +7,170 @@ import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'fir
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 
+// دالة مساعدة لتنسيق الكلاسات
+const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+
 export default function BoardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [elements, setElements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const userId = auth.currentUser?.uid || "guest";
+  const [activeId, setActiveId] = useState<string | null>(null);
 
+  const userId = auth.currentUser?.uid || "guest";
+  const boardDocRef = doc(db, "boards", userId);
+
+  // جلب البيانات من الفايربيس
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "boards", userId), (d) => {
+    const unsub = onSnapshot(boardDocRef, (d) => {
       if (d.exists()) setElements(d.data().elements || []);
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
   }, [userId]);
 
+  // إضافة نوت ورقي
   const addNote = async () => {
-    const newNote = { id: `n_${Date.now()}`, type: 'note', content: '', x: 50, y: 150, rotate: Math.random() * 6 - 3 };
-    await updateDoc(doc(db, "boards", userId), { elements: arrayUnion(newNote) });
+    const id = `note_${Date.now()}`;
+    const newNote = { 
+      id, 
+      type: 'note', 
+      content: '', 
+      x: 50 + Math.random() * 50, 
+      y: 150, 
+      rotate: Math.random() * 6 - 3 
+    };
+    await updateDoc(boardDocRef, { elements: arrayUnion(newNote) });
   };
 
-  const handleUpload = async (e: any) => {
-    const files = Array.from(e.target.files);
-    toast.loading('جاري الرفع...', { id: 'up' });
-    for (const file of files) {
+  // رفع الصور
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    toast.loading('جاري تثبيت الصور...', { id: 'up' });
+    for (const file of Array.from(files)) {
       const reader = new FileReader();
-      reader.onload = async (ev: any) => {
+      reader.onload = async (ev) => {
         const id = `img_${Date.now()}_${Math.random()}`;
         const sRef = ref(storage, `board/${userId}/${id}`);
-        await uploadString(sRef, ev.target.result, 'data_url');
+        await uploadString(sRef, ev.target?.result as string, 'data_url');
         const url = await getDownloadURL(sRef);
-        await updateDoc(doc(db, "boards", userId), {
-          elements: arrayUnion({ id, type: 'image', content: url, x: 100, y: 200, rotate: Math.random() * 4 - 2 })
-        });
+        const newImg = { 
+          id, 
+          type: 'image', 
+          content: url, 
+          x: 100 + Math.random() * 50, 
+          y: 200, 
+          rotate: Math.random() * 10 - 5 
+        };
+        await updateDoc(boardDocRef, { elements: arrayUnion(newImg) });
       };
-      reader.readAsDataURL(file as Blob);
+      reader.readAsDataURL(file);
     }
     toast.success('تمت الإضافة', { id: 'up' });
   };
 
-  const removeEl = async (el: any) => {
-    await updateDoc(doc(db, "boards", userId), { elements: arrayRemove(el) });
+  // حذف عنصر
+  const removeElement = async (el: any) => {
+    await updateDoc(boardDocRef, { elements: arrayRemove(el) });
+    toast.success('تمت الإزالة');
   };
 
   if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
 
   return (
     <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
-      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl"><ChevronLeft /></button>
+      
+      {/* زر العودة */}
+      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95">
+        <ChevronLeft size={24} />
+      </button>
 
-      <div className="w-full h-full relative">
+      {/* ساحة العمل */}
+      <div className="w-full h-full relative z-10" onClick={() => setActiveId(null)}>
         <AnimatePresence>
           {elements.map((el) => (
-            <motion.div key={el.id} drag dragMomentum={false} className="absolute z-20 cursor-grab active:cursor-grabbing" style={{ x: el.x, y: el.y, rotate: el.rotate }}>
-              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black text-white p-1 rounded opacity-0 hover:opacity-100 transition-opacity">
-                <button onClick={() => removeEl(el)}><Trash2 size={16}/></button>
+            <motion.div
+              key={el.id}
+              drag dragMomentum={false}
+              onDragStart={() => setActiveId(el.id)}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1, x: el.x, y: el.y, rotate: el.rotate }}
+              whileDrag={{ scale: 1.05, zIndex: 100 }}
+              className="absolute cursor-grab active:cursor-grabbing p-4"
+            >
+              {/* الدبوس الأحمر المشترك */}
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-30">
+                <div className="w-4 h-4 bg-red-600 rounded-full shadow-md border-b-4 border-red-800" />
+                <div className="w-1 h-2 bg-gray-400 mx-auto -mt-1 opacity-50" />
               </div>
-              
-              {el.type === 'note' ? (
-                <div className="relative bg-[#fff9c4] p-6 shadow-xl w-52 min-h-[150px]">
-                   <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-red-600"><Plus size={20} className="fill-current"/></div>
-                   <textarea className="w-full bg-transparent border-none outline-none resize-none font-serif text-stone-800" defaultValue={el.content} onBlur={async (e) => {
-                     const updated = elements.map(item => item.id === el.id ? {...item, content: e.target.value} : item);
-                     await setDoc(doc(db, "boards", userId), { elements: updated });
-                   }} />
-                </div>
-              ) : (
-                <div className="bg-white p-2 pb-8 shadow-2xl border border-stone-200">
-                  <img src={el.content} className="w-44 h-auto pointer-events-none" />
-                </div>
-              )}
+
+              {/* محتوى العنصر */}
+              <div className={cn(
+                "relative shadow-2xl transition-transform",
+                el.type === 'note' ? "bg-yellow-100 p-6 pt-8 w-52 h-52 shadow-[5px_5px_15px_rgba(0,0,0,0.3)]" : "bg-white p-2 pb-10 shadow-xl"
+              )}>
+                {el.type === 'note' ? (
+                  <textarea
+                    className="w-full h-full bg-transparent border-none outline-none resize-none font-handwriting text-stone-800 leading-relaxed"
+                    placeholder="اكتب هنا..."
+                    defaultValue={el.content}
+                    onChange={(e) => {
+                      const newContent = e.target.value;
+                      const updated = elements.map(item => item.id === el.id ? {...item, content: newContent} : item);
+                      setDoc(boardDocRef, { elements: updated }, { merge: true });
+                    }}
+                  />
+                ) : (
+                  <img src={el.content} className="w-48 h-auto pointer-events-none block" alt="" />
+                )}
+
+                {/* زر الحذف يظهر عند الضغط */}
+                {activeId === el.id && (
+                  <motion.button
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    onClick={(e) => { e.stopPropagation(); removeElement(el); }}
+                    className="absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700"
+                  >
+                    <Trash2 size={16} />
+                  </motion.button>
+                )}
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
 
-      {/* البنر الأسود مرفوع فوق النبر السفلي */}
-      <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
-        <div className="bg-stone-900/95 backdrop-blur-xl rounded-full p-2 flex items-center justify-between shadow-2xl border border-white/10">
-          <button onClick={addNote} className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-black rounded-full font-bold text-xs">
-            <Plus size={16} /> ADD NOTE
+      {/* البنر السفلي المطور */}
+      <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[85%] max-w-md">
+        <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10">
+          <button 
+            onClick={addNote}
+            className="flex items-center gap-2 px-6 py-4 bg-yellow-400 text-stone-900 rounded-full font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg"
+          >
+            <Plus size={18} strokeWidth={3} />
+            <span>NOTE</span>
           </button>
-          <button onClick={() => fileInputRef.current?.click()} className="p-4 text-white"><ImageIcon /></button>
-          <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleUpload} />
+
+          <div className="flex gap-2 pr-2">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-4 bg-stone-800 text-white rounded-full hover:bg-stone-700 active:scale-95 transition-all"
+            >
+              <ImageIcon size={22} />
+            </button>
+            <button 
+              onClick={() => toast.success('تم الحفظ تلقائياً')}
+              className="p-4 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 active:scale-95 transition-all"
+            >
+              <Save size={22} />
+            </button>
+          </div>
         </div>
       </div>
+
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleUpload} />
     </div>
   );
 }
