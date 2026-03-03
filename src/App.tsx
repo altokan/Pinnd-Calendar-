@@ -18,8 +18,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-// التعديل هنا: إضافة .tsx والتأكد من المسار لخدمة Vercel
-import BoardPage from '../src/pages/board.tsx'; 
+/* المسار الصحيح والمضمون لـ Vercel هو كالتالي */
+import BoardPage from './pages/board'; 
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AddEventPage from './pages/AddEventPage';
@@ -65,7 +65,7 @@ export default function App() {
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
             
-            {/* الربط بالصفحة الجديدة */}
+            {/* عرض صفحة اللوحة الجديدة في مسار sketch */}
             <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
             
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
