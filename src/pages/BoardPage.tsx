@@ -93,8 +93,8 @@ export default function BoardPage() {
               whileDrag={{ scale: 1.05, zIndex: 100 }}
               className="absolute cursor-grab active:cursor-grabbing p-4"
             >
-              {/* الدبوس الأحمر - تم تعديله ليكون فوق العنصر تماماً */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+              {/* الدبوس الأحمر فوق كل شيء */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
                 <div className="w-4 h-4 bg-red-600 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] border-b-4 border-red-800 relative">
                     <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent to-white/30 rounded-full" />
                 </div>
@@ -107,12 +107,12 @@ export default function BoardPage() {
                     ? "bg-yellow-100 p-6 pt-10 w-52 h-52 shadow-[5px_5px_15px_rgba(0,0,0,0.2)] overflow-hidden" 
                     : "bg-white p-2 pb-10 shadow-xl"
               )}>
-                {/* تأثير الطي (الطعجة) في الزاوية للنوت */}
+                {/* تأثير الطي (الطعجة) */}
                 {el.type === 'note' && (
-                  <div className="absolute bottom-0 right-0 w-8 h-8 bg-gradient-to-tl from-black/10 via-transparent to-transparent pointer-events-none" />
-                )}
-                {el.type === 'note' && (
-                   <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-yellow-200 rotate-45 shadow-inner pointer-events-none border-l border-t border-black/5" />
+                  <>
+                    <div className="absolute bottom-0 right-0 w-8 h-8 bg-gradient-to-tl from-black/10 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-yellow-200 rotate-45 shadow-inner pointer-events-none border-l border-t border-black/5" />
+                  </>
                 )}
 
                 {el.type === 'note' ? (
@@ -130,13 +130,15 @@ export default function BoardPage() {
                   <img src={el.content} className="w-48 h-auto pointer-events-none block rounded-sm" alt="" />
                 )}
 
+                {/* زر الحذف - يظهر الآن داخل الورقة في الزاوية العلوية */}
                 {activeId === el.id && (
                   <motion.button
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, scale: 0.5 }} 
+                    animate={{ opacity: 1, scale: 1 }}
                     onClick={(e) => { e.stopPropagation(); removeElement(el); }}
-                    className="absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700 z-[70]"
+                    className="absolute top-2 right-2 bg-red-600/90 text-white p-1.5 rounded-lg shadow-md hover:bg-red-700 z-[90] active:scale-90 transition-all"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={14} />
                   </motion.button>
                 )}
               </div>
@@ -145,7 +147,7 @@ export default function BoardPage() {
         </AnimatePresence>
       </div>
 
-      {/* البنر السفلي المطور */}
+      {/* البنر السفلي */}
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[85%] max-w-md">
         <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10">
           <button 
