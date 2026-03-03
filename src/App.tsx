@@ -18,10 +18,10 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MapsPage from './pages/MapsPage';
-import SketchPage from './pages/SketchPage';
+import BoardPage from './pages/BoardPage'; // تم تغيير الاسم هنا من SketchPage إلى BoardPage
 import NotificationsPage from './pages/NotificationsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
-import AddEventPage from './pages/AddEventPage'; // سنقوم بإنشاء هذا الملف الآن
+import AddEventPage from './pages/AddEventPage';
 
 /**
  * مكون حماية المسارات
@@ -68,7 +68,10 @@ export default function App() {
             {/* المسارات المحمية داخل الـ Layout */}
             <Route path="/" element={<ProtectedRoute><Layout><CalendarPage /></Layout></ProtectedRoute>} />
             <Route path="/maps" element={<ProtectedRoute><Layout><MapsPage /></Layout></ProtectedRoute>} />
-            <Route path="/sketch" element={<ProtectedRoute><Layout><SketchPage /></Layout></ProtectedRoute>} />
+            
+            {/* تم تحديث المسار هنا ليستخدم BoardPage الجديدة */}
+            <Route path="/sketch" element={<ProtectedRoute><Layout><BoardPage /></Layout></ProtectedRoute>} />
+            
             <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
             
