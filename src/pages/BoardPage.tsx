@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save } from 'lucide-react';
+import { Trash2, ChevronLeft, ImageIcon, Plus, Calendar, Loader2, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../services/firebase';
 import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -16,6 +16,7 @@ export default function BoardPage() {
   const [elements, setElements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null); // حالة الصورة المختارة للعرض
 
   const userId = auth.currentUser?.uid || "guest";
   const boardDocRef = doc(db, "boards", userId);
@@ -73,12 +74,21 @@ export default function BoardPage() {
     toast.success('Removed');
   };
 
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>, id: string) => {
+    const target = e.target;
+    target.style.height = 'auto';
+    target.style.height = `${target.scrollHeight}px`;
+    
+    const updated = elements.map(item => item.id === id ? {...item, content: target.value} : item);
+    setDoc(boardDocRef, { elements: updated }, { merge: true });
+  };
+
   if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
 
   return (
     <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
       
-      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95">
+      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95 transition-all">
         <ChevronLeft size={24} />
       </button>
 
@@ -104,32 +114,43 @@ export default function BoardPage() {
 
               {/* جسم الورقة أو الصورة */}
               <div className={cn(
-                "relative shadow-2xl transition-transform",
+                "relative shadow-2xl transition-all duration-200",
                 el.type === 'note' 
-                    ? "bg-[#fff9c4] p-6 pt-12 w-56 h-56 shadow-[8px_8px_20px_rgba(0,0,0,0.2)]" 
+                    ? "bg-[#fff9c4] p-6 pt-12 min-w-[200px] max-w-[280px] shadow-[8px_8px_20px_rgba(0,0,0,0.2)]" 
                     : "bg-white p-2 pb-12 shadow-xl border border-stone-200"
               )}>
-                {/* تأثير الطعجة */}
                 {el.type === 'note' && (
-                  <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#f0e68c] rotate-45 shadow-inner border-l border-t border-black/5" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#f0e68c] rotate-45 shadow-inner border-l border-t border-black/5 pointer-events-none" />
                 )}
 
                 {el.type === 'note' ? (
                   <textarea
                     style={{ fontFamily: "'Caveat', cursive" }}
-                    className="w-full h-full bg-transparent border-none outline-none resize-none text-stone-800 leading-tight text-2xl font-bold"
+                    rows={1}
+                    className="w-full bg-transparent border-none outline-none resize-none text-stone-800 leading-tight text-2xl font-bold overflow-hidden"
                     placeholder="Write your idea here..."
                     defaultValue={el.content}
-                    onChange={(e) => {
-                      const updated = elements.map(item => item.id === el.id ? {...item, content: e.target.value} : item);
-                      setDoc(boardDocRef, { elements: updated }, { merge: true });
+                    onInput={(e) => handleInput(e as any, el.id)}
+                    ref={(tag) => {
+                      if (tag) {
+                        tag.style.height = 'auto';
+                        tag.style.height = `${tag.scrollHeight}px`;
+                      }
                     }}
                   />
                 ) : (
-                  <img src={el.content} className="w-48 h-auto pointer-events-none block grayscale-[0.1]" alt="" />
+                  <img 
+                    src={el.content} 
+                    className="w-48 h-auto pointer-events-auto block grayscale-[0.1] cursor-zoom-in" 
+                    alt="" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImage(el.content); // فتح الصورة عند الضغط
+                    }}
+                  />
                 )}
 
-                {/* أزرار التحكم - تظهر الآن بشكل دائم */}
+                {/* أزرار التحكم الدائمة */}
                 <div className="absolute top-2 right-2 flex flex-col gap-2 z-[90]">
                   <button 
                     onClick={(e) => { e.stopPropagation(); removeElement(el); }} 
@@ -151,6 +172,34 @@ export default function BoardPage() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* نافذة عرض الصورة المكبرة (Lightbox Modal) */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <motion.button 
+              className="absolute top-6 right-6 text-white bg-white/10 p-3 rounded-full hover:bg-white/20"
+              onClick={() => setSelectedImage(null)}
+            >
+              <X size={32} />
+            </motion.button>
+            <motion.img 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              src={selectedImage} 
+              className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+              alt="Preview"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm">
         <div className="bg-stone-900/95 backdrop-blur-2xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
