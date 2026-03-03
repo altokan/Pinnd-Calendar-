@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging } from "firebase/messaging"; // إضافة هذا السطر
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,12 +13,15 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// الدالة التي كان يبحث عنها نظام الـ Build
+// المتغير الذي تحتاجه صفحة التسجيل
 export const isFirebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// المتغير الذي يحتاجه ملف push.ts
+export const messaging = typeof window !== "undefined" ? getMessaging(app) : null; 
 
 let db: any;
 try {
