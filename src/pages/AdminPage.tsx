@@ -1,360 +1,306 @@
-import React, { useState, useEffect } from 'react';
-import { db, storage } from '../services/firebase';
-import { 
-  collection, doc, setDoc, onSnapshot, query, 
-  updateDoc, deleteDoc, addDoc, serverTimestamp, orderBy 
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Save, Plus, Trash2, Smartphone, RefreshCw, 
-  Users, Bell, Palette, UploadCloud, Edit3, UserPlus, Send, X, Shield, Eye, EyeOff, Key, Clock, Mail, User as UserIcon
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
+  MapPin, Trash2, Edit3, X, Check, ImageIcon, Plus, 
+  Loader2, Clock, Utensils, Music, Stethoscope, Briefcase, Star,
+  Grid, List, Bell, BellOff
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { db, auth } from '../services/firebase';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 
-export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'onboarding' | 'users' | 'notifications' | 'settings' | 'security'>('onboarding');
+const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+
+function ChangeView({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => { if (center) map.flyTo(center, 14); }, [center]);
+  return null;
+}
+
+const EVENT_TYPES = [
+  { id: 'food', icon: Utensils, label: 'Restaurant', color: 'bg-orange-500' },
+  { id: 'party', icon: Music, label: 'Party', color: 'bg-purple-500' },
+  { id: 'med', icon: Stethoscope, label: 'Doctor', color: 'bg-red-500' },
+  { id: 'work', icon: Briefcase, label: 'Work', color: 'bg-blue-500' },
+  { id: 'other', icon: Star, label: 'Other', color: 'bg-stone-500' },
+];
+
+export default function CalendarPage() {
+  const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedDayEvents, setSelectedDayEvents] = useState<any[] | null>(null);
   
-  // Data States
-  const [version, setVersion] = useState("1.0.0");
-  const [slides, setSlides] = useState<any[]>([]);
-  const [usersList, setUsersList] = useState<any[]>([]);
-  const [appConfig, setAppConfig] = useState({ primaryColor: '#1c1917', appLogo: '' });
-  const [securityRequests, setSecurityRequests] = useState<any[]>([]);
-  
-  // Modal States
-  const [userModal, setUserModal] = useState<{show: boolean, type: 'add' | 'edit', data?: any}>({ show: false, type: 'add' });
-  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    title: '', date: '', time: '', location: '', note: '', type: 'other', image: '', alert: false
+  });
+  const [coords, setCoords] = useState<[number, number]>([24.7136, 46.6753]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const userId = auth.currentUser?.uid || "guest";
+  const eventsDocRef = doc(db, "events", userId);
 
   useEffect(() => {
-    // 1. Fetch Onboarding Data
-    const unsubOnboard = onSnapshot(doc(db, "app_config", "onboarding"), (snap) => {
-      if (snap.exists()) {
-        setVersion(snap.data().onboardingVersion || "1.0.0");
-        setSlides(snap.data().slides || []);
-      }
-    });
+    const unsub = onSnapshot(eventsDocRef, (d) => {
+      if (d.exists()) setEvents(d.data().events || []);
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
+  }, [userId]);
 
-    // 2. Fetch Users Data
-    const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
-      setUsersList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // 3. Fetch Theme Config
-    const unsubTheme = onSnapshot(doc(db, "app_config", "appearance"), (snap) => {
-      if (snap.exists()) setAppConfig(snap.data() as any);
-    });
-
-    // 4. Fetch Security Requests
-    const unsubSecurity = onSnapshot(query(collection(db, "security_requests"), orderBy("createdAt", "desc")), (snap) => {
-      setSecurityRequests(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    setLoading(false);
-    return () => { unsubOnboard(); unsubUsers(); unsubTheme(); unsubSecurity(); };
-  }, []);
-
-  // --- Image Management ---
-  const handleImageUpload = async (path: string, file: File, callback: (url: string) => void) => {
-    const loadingToast = toast.loading("Uploading image...");
-    try {
-      const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
-      callback(url);
-      toast.success("Uploaded successfully", { id: loadingToast });
-    } catch (e) {
-      toast.error("Upload failed", { id: loadingToast });
-    }
+  const getEventsForDay = (day: number) => {
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return events.filter(e => e.date === dateStr).sort((a, b) => a.time.localeCompare(b.time));
   };
 
-  // --- Save Configs ---
-  const saveAllConfigs = async (type: 'onboarding' | 'appearance') => {
-    if (type === 'onboarding') {
-      await setDoc(doc(db, "app_config", "onboarding"), { onboardingVersion: version, slides, lastUpdated: serverTimestamp() });
+  const handleDayClick = (day: number) => {
+    const dayEvs = getEventsForDay(day);
+    if (dayEvs.length > 0) {
+      setSelectedDayEvents(dayEvs);
     } else {
-      await setDoc(doc(db, "app_config", "appearance"), appConfig);
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      setForm({ ...form, date: dateStr, title: '', time: '', location: '', note: '', type: 'other', image: '', alert: false });
+      setShowAddModal(true);
     }
-    toast.success("Saved successfully!");
   };
 
-  // --- User Management Actions ---
-  const handleUserAction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const data = Object.fromEntries(formData);
-
-    try {
-      if (userModal.type === 'add') {
-        await addDoc(collection(db, "users"), {
-          ...data,
-          createdAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          lastLogin: "Never",
-          role: data.role || 'user'
-        });
-        toast.success("Member added successfully");
-      } else {
-        await updateDoc(doc(db, "users", userModal.data.id), data);
-        toast.success("Member updated successfully");
-      }
-      setUserModal({ show: false, type: 'add' });
-    } catch (e) { toast.error("Action failed"); }
+  const handleLocationSearch = async (val: string) => {
+    setForm({ ...form, location: val });
+    if (val.length >= 3) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
+      const data = await res.json();
+      setSuggestions(data.slice(0, 3));
+    } else setSuggestions([]);
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-stone-50"><RefreshCw className="animate-spin text-stone-300" size={48} /></div>;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setForm({ ...form, image: ev.target?.result as string });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const saveEvent = async () => {
+    if (!form.title || !form.date) return toast.error('Title and Date are required');
+    const newEvent = { ...form, id: selectedEvent?.id || `ev_${Date.now()}`, coords };
+    let updatedEvents = selectedEvent ? events.map(e => e.id === selectedEvent.id ? newEvent : e) : [...events, newEvent];
+    await updateDoc(eventsDocRef, { events: updatedEvents });
+    toast.success('Saved successfully');
+    setShowAddModal(false);
+    setSelectedEvent(null);
+    setSelectedDayEvents(null);
+  };
+
+  const deleteEvent = async (id: string) => {
+    const updated = events.filter(e => e.id !== id);
+    await updateDoc(eventsDocRef, { events: updated });
+    toast.success('Deleted');
+    setSelectedEvent(null);
+    setSelectedDayEvents(null);
+  };
+
+  if (loading) return <div className="fixed inset-0 bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10 font-sans text-left" dir="ltr">
+    <div className="min-h-screen bg-[#f8f5f2] px-4 py-4 sm:py-6 pb-28 font-sans text-stone-800 overflow-x-hidden">
       
-      {/* 🧭 Navigation Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-6 mb-10 border-b border-stone-100 no-scrollbar">
-        {[
-          { id: 'onboarding', icon: <Smartphone />, label: 'Onboarding' },
-          { id: 'users', icon: <Users />, label: 'Members' },
-          { id: 'security', icon: <Shield />, label: 'Security' },
-          { id: 'notifications', icon: <Bell />, label: 'Notifications' },
-          { id: 'settings', icon: <Palette />, label: 'App Style' },
-        ].map(tab => (
-          <button 
-            key={tab.id} 
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-stone-900 text-white shadow-xl' : 'bg-white text-stone-400 hover:bg-stone-50'}`}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+      {/* Header - Mobile Optimized Container */}
+      <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+        <div className="w-full sm:w-auto flex justify-between items-center sm:block">
+          <div>
+            <h1 className="text-2xl sm:text-4xl font-black tracking-tighter text-stone-900 capitalize">
+              {currentDate.toLocaleString('en-US', { month: 'long' })}
+              <span className="text-blue-600 ml-2">{currentDate.getFullYear()}</span>
+            </h1>
+            <div className="flex gap-2 sm:gap-3 mt-1 items-center">
+              <p className="text-stone-400 font-bold text-[9px] sm:text-[10px] uppercase tracking-widest">Admin Dashboard</p>
+              <div className="flex bg-stone-200/50 p-0.5 sm:p-1 rounded-lg">
+                <button onClick={() => setViewMode('grid')} className={cn("p-1 rounded-md transition-all", viewMode === 'grid' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><Grid size={12}/></button>
+                <button onClick={() => setViewMode('timeline')} className={cn("p-1 rounded-md transition-all", viewMode === 'timeline' ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}><List size={12}/></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Date Controls - Full width on mobile */}
+        <div className="flex w-full sm:w-auto justify-between sm:justify-center gap-2 bg-white p-1 rounded-2xl shadow-sm border border-stone-100">
+          <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 hover:bg-stone-50 rounded-xl transition-colors flex-1 sm:flex-none justify-center flex"><ChevronLeft size={18}/></button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-3 sm:px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-tighter hover:bg-stone-50 rounded-xl transition-colors">Today</button>
+          <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 hover:bg-stone-50 rounded-xl transition-colors flex-1 sm:flex-none justify-center flex"><ChevronRight size={18}/></button>
+        </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        
-        {/* 1️⃣ Onboarding Section */}
-        {activeTab === 'onboarding' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm flex justify-between items-center border border-stone-50">
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-stone-400">Version:</span>
-                <input value={version} onChange={e => setVersion(e.target.value)} className="w-20 p-2 bg-stone-100 rounded-xl text-center font-black border-none" />
-              </div>
-              <button onClick={() => saveAllConfigs('onboarding')} className="bg-stone-900 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-black transition-all">
-                <Save size={18}/> Save & Publish
-              </button>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {slides.map((slide, i) => (
-                <div key={i} className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-stone-50 space-y-4 relative group">
-                  <div className="h-48 bg-stone-50 rounded-[2rem] overflow-hidden relative border-2 border-dashed border-stone-100">
-                    {slide.img ? <img src={slide.img} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center text-stone-200"><UploadCloud size={40}/></div>}
-                    <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-all text-white font-bold text-xs">
-                      Change Image
-                      <input type="file" className="hidden" onChange={e => e.target.files && handleImageUpload('onboarding', e.target.files[0], (url) => {
-                        const s = [...slides]; s[i].img = url; setSlides(s);
-                      })} />
-                    </label>
-                  </div>
-                  <input value={slide.title} onChange={e => {const s=[...slides]; s[i].title=e.target.value; setSlides(s);}} placeholder="Title" className="w-full p-3 bg-stone-50 border-none rounded-xl font-bold" />
-                  <textarea value={slide.desc} onChange={e => {const s=[...slides]; s[i].desc=e.target.value; setSlides(s);}} placeholder="Description" className="w-full p-3 bg-stone-50 border-none rounded-xl h-20 text-xs resize-none" />
-                  <button onClick={() => setSlides(slides.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 transition-colors"><Trash2 size={18}/></button>
-                </div>
-              ))}
-              <button onClick={() => setSlides([...slides, {title:'', desc:'', img:''}])} className="border-4 border-dashed border-stone-100 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-stone-200 hover:text-stone-400 hover:bg-white transition-all">
-                <Plus size={40} /> <span className="font-bold">Add Slide</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* 2️⃣ Users Management */}
-        {activeTab === 'users' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] shadow-sm">
-              <h2 className="text-2xl font-black text-stone-800 flex items-center gap-3"><Users className="text-stone-400"/> Members List ({usersList.length})</h2>
-              <button onClick={() => setUserModal({show: true, type: 'add'})} className="bg-stone-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-stone-200">
-                <UserPlus size={20}/> Add New Member
-              </button>
-            </div>
-
-            <div className="bg-white rounded-[2.5rem] shadow-xl border border-stone-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-stone-50 border-b border-stone-100">
-                    <tr>
-                      <th className="p-6 font-black text-stone-400 text-xs uppercase tracking-widest">User</th>
-                      <th className="p-6 font-black text-stone-400 text-xs uppercase tracking-widest">History</th>
-                      <th className="p-6 font-black text-stone-400 text-xs uppercase tracking-widest">Role</th>
-                      <th className="p-6 font-black text-stone-400 text-xs uppercase tracking-widest text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-50">
-                    {usersList.map(u => (
-                      <tr key={u.id} className="hover:bg-stone-50/50 transition-colors group">
-                        <td className="p-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-stone-100 rounded-full flex items-center justify-center text-stone-400 font-bold">{u.username?.charAt(0)}</div>
-                            <div>
-                              <div className="font-black text-stone-800">{u.username}</div>
-                              <div className="text-xs text-stone-400">{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-6">
-                          <div className="flex items-center gap-1 text-[11px] text-stone-500 font-bold"><Clock size={12}/> Registered: {u.createdAt || 'N/A'}</div>
-                          <div className="flex items-center gap-1 text-[11px] text-green-600 font-bold"><RefreshCw size={12}/> Last Login: {u.lastLogin || 'Never'}</div>
-                        </td>
-                        <td className="p-6">
-                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${u.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>
-                            {u.role === 'admin' ? 'Administrator' : 'Regular User'}
-                          </span>
-                        </td>
-                        <td className="p-6">
-                          <div className="flex justify-center gap-4">
-                            {/* Clearer Edit/Delete Buttons */}
-                            <button 
-                              onClick={() => setUserModal({show: true, type: 'edit', data: u})} 
-                              className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                              title="Edit User"
-                            >
-                              <Edit3 size={18}/>
-                            </button>
-                            <button 
-                              onClick={async () => { if(confirm("Are you sure you want to delete this user permanently?")) await deleteDoc(doc(db, "users", u.id)) }} 
-                              className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-                              title="Delete User"
-                            >
-                              <Trash2 size={18}/>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+      <div className="max-w-4xl mx-auto">
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-7 gap-1 sm:gap-3">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+              <div key={d} className="text-center text-[9px] sm:text-[10px] font-black text-stone-300 uppercase mb-1 tracking-widest">{d}</div>
+            ))}
+            {Array(firstDayOfMonth).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
+            {days.map(day => {
+              const dayEvents = getEventsForDay(day);
+              const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+              return (
+                <motion.div 
+                  key={day} whileTap={{ scale: 0.95 }}
+                  onClick={() => handleDayClick(day)}
+                  className={cn(
+                    "aspect-square bg-white rounded-lg sm:rounded-[1.5rem] p-1 sm:p-2 border transition-all relative cursor-pointer",
+                    isToday ? "border-blue-500 ring-2 sm:ring-4 ring-blue-500/10 shadow-md" : "border-stone-100 shadow-sm"
+                  )}
+                >
+                  <span className={cn("text-[10px] sm:text-sm font-black", isToday ? "text-blue-600" : "text-stone-400")}>{day}</span>
+                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                    {dayEvents.map(e => (
+                      <div key={e.id} className={cn("w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full", EVENT_TYPES.find(t => t.id === e.type)?.color || 'bg-blue-500')} />
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* 3️⃣ Security Requests */}
-        {activeTab === 'security' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <h2 className="text-2xl font-black text-stone-800 px-4 flex items-center gap-3"><Shield className="text-stone-400"/> Account Recovery Requests</h2>
-            <div className="grid gap-4">
-              {securityRequests.length === 0 ? (
-                <div className="bg-white p-20 rounded-[3rem] text-center text-stone-300 font-bold">No pending requests</div>
-              ) : (
-                securityRequests.map(req => (
-                  <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-50 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><Key size={24}/></div>
-                      <div>
-                        <div className="font-bold text-stone-800">Password reset for: {req.email}</div>
-                        <div className="text-xs text-stone-400">Requested: {req.createdAt?.toDate().toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <button onClick={async () => await deleteDoc(doc(db, "security_requests", req.id))} className="p-3 text-stone-300 hover:text-rose-500 transition-colors"><X/></button>
                   </div>
-                ))
-              )}
-            </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="relative border-l-2 border-stone-200 ml-2 sm:ml-4 pl-6 sm:pl-8 space-y-6 py-2">
+            {events.sort((a, b) => a.date.localeCompare(b.date)).map((e) => (
+              <motion.div key={e.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="relative group">
+                <div className={cn("absolute -left-[35px] sm:-left-[41px] top-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full border-4 border-[#f8f5f2] shadow-sm", EVENT_TYPES.find(t => t.id === e.type)?.color || 'bg-blue-500')} />
+                <div onClick={() => { setSelectedEvent(e); setForm(e); }} className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm border border-stone-100 flex gap-4 sm:gap-6 items-center cursor-pointer active:scale-[0.98] transition-all">
+                  {e.image && <img src={e.image} className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl object-cover" alt="" />}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[8px] sm:text-[10px] font-black text-blue-500 uppercase tracking-widest block truncate">{e.date} • {e.time}</span>
+                    <h3 className="text-base sm:text-xl font-black text-stone-900 truncate">{e.title}</h3>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modals - Optimized for Mobile Viewports */}
+      <AnimatePresence>
+        {selectedDayEvents && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[900] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-sm p-6 sm:p-8 shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg sm:text-xl font-black">Day Events</h2>
+                <button onClick={() => setSelectedDayEvents(null)} className="p-2"><X size={20}/></button>
+              </div>
+              <div className="space-y-3 max-h-[40vh] sm:max-h-[50vh] overflow-y-auto pr-1">
+                {selectedDayEvents.map(e => (
+                  <div key={e.id} className="p-3 sm:p-4 bg-stone-50 rounded-2xl flex items-center justify-between border border-stone-100">
+                    <div className="flex-1 cursor-pointer" onClick={() => { setSelectedEvent(e); setForm(e); }}>
+                      <p className="font-black text-stone-800 text-xs sm:text-sm">{e.title}</p>
+                      <p className="text-[9px] sm:text-[10px] text-stone-400 font-bold uppercase">{e.time || 'No Time'}</p>
+                    </div>
+                    <div className="flex gap-1 sm:gap-2">
+                      <button onClick={() => { setForm(e); setSelectedEvent(e); setShowAddModal(true); setSelectedDayEvents(null); }} className="p-2 text-blue-500"><Edit3 size={16}/></button>
+                      <button onClick={() => deleteEvent(e.id)} className="p-2 text-red-500"><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => { setShowAddModal(true); setSelectedDayEvents(null); }} className="w-full mt-6 py-4 bg-stone-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all text-xs sm:text-sm">Add New Event</button>
+            </motion.div>
           </motion.div>
         )}
-
-        {/* 4️⃣ App Style */}
-        {activeTab === 'settings' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto">
-            <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-stone-50 space-y-10">
-              <div className="text-center space-y-6">
-                <div className="w-32 h-32 bg-stone-50 rounded-[2.5rem] mx-auto border-4 border-white shadow-xl overflow-hidden relative group">
-                  <img src={appConfig.appLogo || 'https://via.placeholder.com/150'} className="w-full h-full object-cover" />
-                  <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-all text-white text-[10px] font-black uppercase">
-                    Change Logo
-                    <input type="file" className="hidden" onChange={e => e.target.files && handleImageUpload('app_assets', e.target.files[0], (url) => setAppConfig({...appConfig, appLogo: url}))} />
-                  </label>
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-stone-800">Brand Identity</h3>
-                  <p className="text-xs text-stone-400 font-bold mt-1">Customize app colors and logo</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-center text-xs font-black text-stone-300 uppercase tracking-widest">Primary Theme Color</p>
-                <div className="flex justify-center gap-4 flex-wrap">
-                  {['#1c1917', '#7c2d12', '#064e3b', '#1e3a8a', '#be123c', '#6d28d9', '#4d7c0f'].map(color => (
-                    <button 
-                      key={color} 
-                      onClick={() => setAppConfig({...appConfig, primaryColor: color})}
-                      className={`w-12 h-12 rounded-2xl border-4 transition-all ${appConfig.primaryColor === color ? 'border-stone-900 scale-125 shadow-lg' : 'border-white shadow-sm'}`}
-                      style={{backgroundColor: color}}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={() => saveAllConfigs('appearance')} className="w-full bg-stone-900 text-white py-5 rounded-[2rem] font-black shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-3">
-                <Save size={20}/> Save Style Settings
-              </button>
-            </div>
-          </motion.div>
-        )}
-
       </AnimatePresence>
 
-      {/* --- User Modal --- */}
-      {userModal.show && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden text-left">
-            <div className="p-8 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
-              <h3 className="text-xl font-black flex items-center gap-2">
-                {userModal.type === 'add' ? <UserPlus className="text-blue-500"/> : <Edit3 className="text-blue-500"/>}
-                {userModal.type === 'add' ? 'Add New Member' : 'Edit Member Details'}
-              </h3>
-              <button onClick={() => setUserModal({show: false, type: 'add'})} className="p-2 hover:bg-stone-200 rounded-full transition-colors"><X/></button>
-            </div>
-            
-            <form onSubmit={handleUserAction} className="p-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-stone-400 ml-2 uppercase tracking-widest">Username</label>
-                <div className="relative">
-                  <UserIcon className="absolute left-4 top-4 text-stone-300" size={18}/>
-                  <input required name="username" defaultValue={userModal.data?.username} className="w-full pl-12 pr-4 py-4 bg-stone-50 border-none rounded-2xl font-bold focus:ring-2 ring-stone-900 transition-all" placeholder="e.g. amjad_99" />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-xs font-black text-stone-400 ml-2 uppercase tracking-widest">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-4 text-stone-300" size={18}/>
-                  <input required name="email" type="email" defaultValue={userModal.data?.email} className="w-full pl-12 pr-4 py-4 bg-stone-50 border-none rounded-2xl font-bold focus:ring-2 ring-stone-900 transition-all" placeholder="email@example.com" />
-                </div>
+      <AnimatePresence>
+        {(showAddModal || selectedEvent) && !selectedDayEvents && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] bg-stone-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md p-6 sm:p-8 overflow-y-auto max-h-[92vh] shadow-2xl relative">
+              <div className="flex justify-between items-center mb-5 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-black">{selectedEvent ? 'Edit Event' : 'New Event'}</h2>
+                <button onClick={() => { setShowAddModal(false); setSelectedEvent(null); }} className="p-2 bg-stone-100 rounded-full"><X size={20}/></button>
               </div>
 
-              <div className="space-y-2 relative">
-                <label className="text-xs font-black text-stone-400 ml-2 uppercase tracking-widest">Password</label>
-                <div className="relative">
-                  <Key className="absolute left-4 top-4 text-stone-300" size={18}/>
-                  <input required name="password" type={showPassword ? "text" : "password"} defaultValue={userModal.data?.password} className="w-full pl-12 pr-12 py-4 bg-stone-50 border-none rounded-2xl font-bold focus:ring-2 ring-stone-900 transition-all" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-stone-300">
-                    {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+              <div className="space-y-4 pb-6">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Event Name</label>
+                  <input placeholder="Ex: Team Meeting" className="w-full p-4 bg-stone-100 rounded-2xl font-bold outline-none text-xs sm:text-sm" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Date</label>
+                    <input type="date" className="w-full p-3 sm:p-4 bg-stone-100 rounded-2xl font-bold outline-none text-[10px] sm:text-xs" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Time</label>
+                    <input type="time" className="w-full p-3 sm:p-4 bg-stone-100 rounded-2xl font-bold outline-none text-[10px] sm:text-xs" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-stone-50 rounded-2xl">
+                  <div className="flex items-center gap-2 font-bold text-[10px] sm:text-xs text-stone-600">
+                    {form.alert ? <Bell className="text-blue-500" size={16}/> : <BellOff className="text-stone-300" size={16}/>}
+                    Enable Alert
+                  </div>
+                  <button onClick={() => setForm({...form, alert: !form.alert})} className={cn("w-10 h-5 sm:w-12 sm:h-6 rounded-full transition-all relative", form.alert ? "bg-blue-500" : "bg-stone-300")}>
+                    <div className={cn("absolute top-0.5 sm:top-1 w-4 h-4 bg-white rounded-full transition-all", form.alert ? "left-5 sm:left-7" : "left-1")} />
                   </button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-black text-stone-400 ml-2 uppercase tracking-widest">Role</label>
-                <select name="role" defaultValue={userModal.data?.role || 'user'} className="w-full p-4 bg-stone-50 border-none rounded-2xl font-black appearance-none focus:ring-2 ring-stone-900 transition-all">
-                  <option value="user">Regular User</option>
-                  <option value="admin">Administrator</option>
-                </select>
-              </div>
+                <div className="relative space-y-1">
+                  <label className="text-[9px] font-black text-stone-400 uppercase ml-1">Location Search</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                    <input placeholder="Search for a place..." className="w-full p-4 pl-12 bg-stone-100 rounded-2xl font-bold outline-none text-xs sm:text-sm" value={form.location} onChange={e => handleLocationSearch(e.target.value)} />
+                    {suggestions.length > 0 && (
+                      <div className="absolute bottom-full left-0 right-0 bg-white shadow-2xl rounded-2xl z-[1200] border mb-1 overflow-hidden">
+                        {suggestions.map((s, i) => (
+                          <div key={i} onClick={() => { 
+                            setForm({...form, location: s.display_name}); 
+                            setCoords([parseFloat(s.lat), parseFloat(s.lon)]); 
+                            setSuggestions([]); 
+                          }} className="p-3 hover:bg-stone-50 text-[9px] sm:text-[10px] cursor-pointer border-b last:border-0">{s.display_name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              <button type="submit" className="w-full bg-stone-900 text-white py-5 rounded-[2rem] font-black shadow-xl hover:scale-[1.02] active:scale-95 transition-all mt-4">
-                {userModal.type === 'add' ? 'Create Account' : 'Save Changes'}
-              </button>
-            </form>
+                <div className="h-24 sm:h-32 rounded-2xl overflow-hidden border grayscale-[0.3]">
+                  <MapContainer center={coords} zoom={13} style={{height:'100%'}} zoomControl={false}>
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                    <Marker position={coords} /><ChangeView center={coords} />
+                  </MapContainer>
+                </div>
+
+                <div className="flex justify-between p-1.5 bg-stone-50 rounded-2xl overflow-x-auto">
+                  {EVENT_TYPES.map(t => (
+                    <button key={t.id} onClick={() => setForm({...form, type: t.id})} className={cn("p-2 sm:p-3 rounded-xl transition-all flex-shrink-0", form.type === t.id ? "bg-white shadow-sm text-blue-600 scale-105" : "text-stone-400")}><t.icon size={18} /></button>
+                  ))}
+                </div>
+
+                <button onClick={() => fileInputRef.current?.click()} className="w-full p-4 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest border-2 border-dashed border-stone-200">
+                  <ImageIcon size={16} /> {form.image ? 'Image Attached' : 'Attach Event Photo'}
+                </button>
+                <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
+
+                <button onClick={saveEvent} className="w-full py-4 bg-blue-600 text-white rounded-[1.5rem] font-black shadow-lg shadow-blue-200 active:scale-95 transition-all text-xs sm:text-sm uppercase tracking-tighter">Confirm & Save</button>
+              </div>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* Floating Action Button */}
+      <button onClick={() => { setSelectedEvent(null); setForm({title:'', date:'', time:'', location:'', note:'', type:'other', image:'', alert:false}); setShowAddModal(true); }} className="fixed bottom-6 right-6 w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[500] active:scale-90 transition-all"><Plus size={24} /></button>
     </div>
   );
 }
