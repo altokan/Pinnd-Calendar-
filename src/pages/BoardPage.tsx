@@ -7,7 +7,6 @@ import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'fir
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 
-// دالة مساعدة لتنسيق الكلاسات
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 export default function BoardPage() {
@@ -20,7 +19,6 @@ export default function BoardPage() {
   const userId = auth.currentUser?.uid || "guest";
   const boardDocRef = doc(db, "boards", userId);
 
-  // جلب البيانات من الفايربيس
   useEffect(() => {
     const unsub = onSnapshot(boardDocRef, (d) => {
       if (d.exists()) setElements(d.data().elements || []);
@@ -29,7 +27,6 @@ export default function BoardPage() {
     return () => unsub();
   }, [userId]);
 
-  // إضافة نوت ورقي
   const addNote = async () => {
     const id = `note_${Date.now()}`;
     const newNote = { 
@@ -38,17 +35,16 @@ export default function BoardPage() {
       content: '', 
       x: 50 + Math.random() * 50, 
       y: 150, 
-      rotate: Math.random() * 6 - 3 
+      rotate: Math.random() * 4 - 2 
     };
     await updateDoc(boardDocRef, { elements: arrayUnion(newNote) });
   };
 
-  // رفع الصور
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     
-    toast.loading('جاري تثبيت الصور...', { id: 'up' });
+    toast.loading('تثبيت الصور...', { id: 'up' });
     for (const file of Array.from(files)) {
       const reader = new FileReader();
       reader.onload = async (ev) => {
@@ -62,16 +58,15 @@ export default function BoardPage() {
           content: url, 
           x: 100 + Math.random() * 50, 
           y: 200, 
-          rotate: Math.random() * 10 - 5 
+          rotate: Math.random() * 8 - 4 
         };
         await updateDoc(boardDocRef, { elements: arrayUnion(newImg) });
       };
       reader.readAsDataURL(file);
     }
-    toast.success('تمت الإضافة', { id: 'up' });
+    toast.success('تم التثبيت', { id: 'up' });
   };
 
-  // حذف عنصر
   const removeElement = async (el: any) => {
     await updateDoc(boardDocRef, { elements: arrayRemove(el) });
     toast.success('تمت الإزالة');
@@ -82,12 +77,10 @@ export default function BoardPage() {
   return (
     <div className="fixed inset-0 overflow-hidden touch-none bg-[#bc8a5f]" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')` }}>
       
-      {/* زر العودة */}
       <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95">
         <ChevronLeft size={24} />
       </button>
 
-      {/* ساحة العمل */}
       <div className="w-full h-full relative z-10" onClick={() => setActiveId(null)}>
         <AnimatePresence>
           {elements.map((el) => (
@@ -100,20 +93,31 @@ export default function BoardPage() {
               whileDrag={{ scale: 1.05, zIndex: 100 }}
               className="absolute cursor-grab active:cursor-grabbing p-4"
             >
-              {/* الدبوس الأحمر المشترك */}
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-30">
-                <div className="w-4 h-4 bg-red-600 rounded-full shadow-md border-b-4 border-red-800" />
-                <div className="w-1 h-2 bg-gray-400 mx-auto -mt-1 opacity-50" />
+              {/* الدبوس الأحمر - تم تعديله ليكون فوق العنصر تماماً */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+                <div className="w-4 h-4 bg-red-600 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] border-b-4 border-red-800 relative">
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent to-white/30 rounded-full" />
+                </div>
               </div>
 
               {/* محتوى العنصر */}
               <div className={cn(
                 "relative shadow-2xl transition-transform",
-                el.type === 'note' ? "bg-yellow-100 p-6 pt-8 w-52 h-52 shadow-[5px_5px_15px_rgba(0,0,0,0.3)]" : "bg-white p-2 pb-10 shadow-xl"
+                el.type === 'note' 
+                    ? "bg-yellow-100 p-6 pt-10 w-52 h-52 shadow-[5px_5px_15px_rgba(0,0,0,0.2)] overflow-hidden" 
+                    : "bg-white p-2 pb-10 shadow-xl"
               )}>
+                {/* تأثير الطي (الطعجة) في الزاوية للنوت */}
+                {el.type === 'note' && (
+                  <div className="absolute bottom-0 right-0 w-8 h-8 bg-gradient-to-tl from-black/10 via-transparent to-transparent pointer-events-none" />
+                )}
+                {el.type === 'note' && (
+                   <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-yellow-200 rotate-45 shadow-inner pointer-events-none border-l border-t border-black/5" />
+                )}
+
                 {el.type === 'note' ? (
                   <textarea
-                    className="w-full h-full bg-transparent border-none outline-none resize-none font-handwriting text-stone-800 leading-relaxed"
+                    className="w-full h-full bg-transparent border-none outline-none resize-none font-handwriting text-stone-800 leading-relaxed text-lg"
                     placeholder="اكتب هنا..."
                     defaultValue={el.content}
                     onChange={(e) => {
@@ -123,15 +127,14 @@ export default function BoardPage() {
                     }}
                   />
                 ) : (
-                  <img src={el.content} className="w-48 h-auto pointer-events-none block" alt="" />
+                  <img src={el.content} className="w-48 h-auto pointer-events-none block rounded-sm" alt="" />
                 )}
 
-                {/* زر الحذف يظهر عند الضغط */}
                 {activeId === el.id && (
                   <motion.button
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                     onClick={(e) => { e.stopPropagation(); removeElement(el); }}
-                    className="absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700"
+                    className="absolute -top-4 -right-4 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700 z-[70]"
                   >
                     <Trash2 size={16} />
                   </motion.button>
@@ -161,7 +164,7 @@ export default function BoardPage() {
               <ImageIcon size={22} />
             </button>
             <button 
-              onClick={() => toast.success('تم الحفظ تلقائياً')}
+              onClick={() => toast.success('محفوظ سحابياً')}
               className="p-4 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 active:scale-95 transition-all"
             >
               <Save size={22} />
