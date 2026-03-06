@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, ChevronRight, Trash2, Clock, 
   Calendar as CalIcon, Edit3, X, Check, 
-  Utensils, Music, Stethoscope, Briefcase, Star, Bell, MapPin
+  Utensils, Music, Stethoscope, Briefcase, Star, Bell, MapPin,
+  Loader2 // تم إصلاح الخطأ هنا
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
@@ -29,7 +30,6 @@ export default function CalendarPage() {
 
   const userId = auth.currentUser?.uid || "guest";
 
-  // جلب الأحداث الخاصة باليوم المختار فقط
   useEffect(() => {
     const q = query(
       collection(db, "events"), 
@@ -38,7 +38,6 @@ export default function CalendarPage() {
     );
     const unsub = onSnapshot(q, (snapshot) => {
       const evs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // ترتيب الأحداث حسب الوقت
       setEvents(evs.sort((a, b) => a.time.localeCompare(b.time)));
       setLoading(false);
     });
@@ -79,13 +78,12 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-24 font-sans">
-      {/* Header & Date Selector */}
       <div className="bg-white p-6 pt-12 rounded-b-[2.5rem] shadow-sm border-b border-stone-100">
         <div className="flex justify-between items-center mb-6">
           <button onClick={() => navigate('/board')} className="p-3 bg-stone-100 rounded-full active:scale-90 transition-all">
             <ChevronLeft size={24} className="text-stone-600" />
           </button>
-          <h1 className="text-xl font-black italic tracking-tighter text-stone-800">SCHEDULE</h1>
+          <h1 className="text-xl font-black italic tracking-tighter text-stone-800 uppercase">Schedule</h1>
           <div className="w-12" />
         </div>
         
@@ -103,10 +101,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Events List */}
       <div className="p-6 space-y-4">
-        <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.2em] px-2">Planned Events</p>
-        
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-stone-300" /></div>
         ) : events.length === 0 ? (
@@ -119,13 +114,7 @@ export default function CalendarPage() {
             {events.map(ev => {
               const typeInfo = EVENT_TYPES.find(t => t.id === ev.type) || EVENT_TYPES[4];
               return (
-                <motion.div 
-                  key={ev.id} 
-                  initial={{ x: -20, opacity: 0 }} 
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  className="bg-white p-5 rounded-[2rem] shadow-sm flex items-center justify-between border border-stone-50 group active:scale-[0.98] transition-all"
-                >
+                <motion.div key={ev.id} layout initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }} className="bg-white p-5 rounded-[2rem] shadow-sm flex items-center justify-between border border-stone-50 group">
                   <div className="flex items-center gap-4">
                     <div className={cn("p-3 rounded-2xl", typeInfo.bg)}>
                       <typeInfo.icon className={typeInfo.color} size={20} />
@@ -141,8 +130,8 @@ export default function CalendarPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => setEditingEvent(ev)} className="p-2 text-stone-400 hover:text-blue-500"><Edit3 size={18}/></button>
-                    <button onClick={() => handleDelete(ev.id)} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={18}/></button>
+                    <button onClick={() => setEditingEvent(ev)} className="p-2 text-stone-400 hover:text-blue-500 transition-colors"><Edit3 size={18}/></button>
+                    <button onClick={() => handleDelete(ev.id)} className="p-2 text-stone-400 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
                   </div>
                 </motion.div>
               );
@@ -151,7 +140,7 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Edit Event Modal (إمكانية التعديل) */}
+      {/* Edit Event Modal */}
       <AnimatePresence>
         {editingEvent && (
           <div className="fixed inset-0 z-[3000] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -162,28 +151,14 @@ export default function CalendarPage() {
                 <button onClick={() => setEditingEvent(null)} className="p-2 bg-stone-100 rounded-full"><X size={20}/></button>
               </div>
               <div className="space-y-4">
-                <input 
-                  type="text" 
-                  value={editingEvent.title} 
-                  onChange={(e) => setEditingEvent({...editingEvent, title: e.target.value})} 
-                  className="w-full bg-stone-50 rounded-2xl p-4 text-stone-800 font-bold border-none outline-none" 
-                />
+                <input type="text" value={editingEvent.title} onChange={(e) => setEditingEvent({...editingEvent, title: e.target.value})} className="w-full bg-stone-50 rounded-2xl p-4 text-stone-800 font-bold border-none outline-none" />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="w-full bg-stone-50 rounded-2xl p-4 text-stone-400 font-bold text-center text-xs">{editingEvent.date}</div>
-                  <input 
-                    type="time" 
-                    value={editingEvent.time} 
-                    onChange={(e) => setEditingEvent({...editingEvent, time: e.target.value})} 
-                    className="w-full bg-stone-50 rounded-2xl p-4 text-stone-800 font-bold border-none outline-none" 
-                  />
+                  <input type="time" value={editingEvent.time} onChange={(e) => setEditingEvent({...editingEvent, time: e.target.value})} className="w-full bg-stone-50 rounded-2xl p-4 text-stone-800 font-bold border-none outline-none" />
                 </div>
                 <div className="flex justify-between p-2 bg-stone-50 rounded-2xl">
                   {EVENT_TYPES.map(t => (
-                    <button 
-                      key={t.id} 
-                      onClick={() => setEditingEvent({...editingEvent, type: t.id})} 
-                      className={cn("p-3 rounded-xl transition-all", editingEvent.type === t.id ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}
-                    >
+                    <button key={t.id} onClick={() => setEditingEvent({...editingEvent, type: t.id})} className={cn("p-3 rounded-xl transition-all", editingEvent.type === t.id ? "bg-white shadow-sm text-blue-600" : "text-stone-400")}>
                       <t.icon size={20} />
                     </button>
                   ))}
