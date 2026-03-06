@@ -1,193 +1,229 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Trash2, ChevronLeft, ImageIcon, Plus, Calendar, 
-  Loader2, Save, Bell, ArrowLeft, ArrowRight, BellOff
+  ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, 
+  Clock, Bell, Repeat, Trash2, X, Check, Loader2, Calendar Days 
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion, arrayRemove, setDoc, getDoc } from 'firebase/firestore';
+import { 
+  collection, query, where, onSnapshot, addDoc, 
+  deleteDoc, doc, updateDoc, Timestamp 
+} from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
-export default function BoardPage() {
+const COLORS = [
+  { id: 'blue', bg: 'bg-blue-500', border: 'border-blue-600' },
+  { id: 'rose', bg: 'bg-rose-500', border: 'border-rose-600' },
+  { id: 'emerald', bg: 'bg-emerald-500', border: 'border-emerald-600' },
+  { id: 'amber', bg: 'bg-amber-500', border: 'border-amber-600' },
+  { id: 'purple', bg: 'bg-purple-500', border: 'border-purple-600' },
+];
+
+export default function CalendarPage() {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [elements, setElements] = useState<any[]>([]);
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // حالة الحدث الجديد
+  const [newEvent, setNewEvent] = useState({
+    title: location.state?.initialTitle || '',
+    time: '12:00',
+    color: 'blue',
+    reminder: true,
+    repeat: 'none'
+  });
 
   const userId = auth.currentUser?.uid || "guest";
-  const boardDocRef = doc(db, "boards", `${userId}_${selectedDate}`);
 
+  // جلب الأحداث من Firebase
   useEffect(() => {
-    setLoading(true);
-    const unsub = onSnapshot(boardDocRef, (d) => {
-      if (d.exists()) setElements(d.data().elements || []);
-      else setElements([]);
+    const q = query(collection(db, "events"), where("userId", "==", userId));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const evs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEvents(evs);
       setLoading(false);
     });
     return () => unsub();
-  }, [selectedDate, userId]);
+  }, [userId]);
 
-  const addNewElement = async (type: 'note' | 'image', content: string = '') => {
-    const newX = 50 + (elements.length * 25) % 120;
-    const newY = 150 + (elements.length * 15) % 120;
-
-    const newEl = {
-      id: `${type === 'note' ? 'n' : 'i'}_${Date.now()}`,
-      type,
-      content,
-      x: newX,
-      y: newY,
-      rotate: Math.floor(Math.random() * 6) - 3,
-      alertEnabled: false 
-    };
+  const handleAddEvent = async () => {
+    if (!newEvent.title.trim()) {
+      toast.error("يرجى كتابة عنوان للحدث");
+      return;
+    }
 
     try {
-      const docSnap = await getDoc(boardDocRef);
-      if (!docSnap.exists()) {
-        await setDoc(boardDocRef, { elements: [newEl] });
-      } else {
-        await updateDoc(boardDocRef, { elements: arrayUnion(newEl) });
-      }
-      toast.success(type === 'note' ? 'Note Pinned' : 'Image Pinned');
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to add element. Try a smaller image.");
+      await addDoc(collection(db, "events"), {
+        ...newEvent,
+        userId,
+        date: selectedDate.toISOString().split('T')[0],
+        createdAt: Timestamp.now()
+      });
+      setIsAddModalOpen(false);
+      setNewEvent({ title: '', time: '12:00', color: 'blue', reminder: true, repeat: 'none' });
+      toast.success("تمت إضافة الحدث بنجاح");
+    } catch (e) {
+      toast.error("خطأ في الإضافة");
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(file => {
-      if (file.size > 1048487) { // الحد الأقصى لـ Firestore للوثيقة الواحدة
-        toast.error("Image is too large. Max 1MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => addNewElement('image', ev.target?.result as string);
-      reader.readAsDataURL(file);
-    });
+  const deleteEvent = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "events", id));
+      toast.success("تم حذف الحدث");
+    } catch (e) {
+      toast.error("خطأ في الحذف");
+    }
   };
 
-  const handleDragEnd = async (id: string, info: any) => {
-    const updated = elements.map(el => 
-      el.id === id ? { ...el, x: el.x + info.offset.x, y: el.y + info.offset.y } : el
-    );
-    await updateDoc(boardDocRef, { elements: updated });
-  };
+  const filteredEvents = events.filter(ev => ev.date === selectedDate.toISOString().split('T')[0]);
 
-  const changeDay = (days: number) => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + days);
-    setSelectedDate(date.toISOString().split('T')[0]);
-  };
-
-  if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
+  if (loading) return <div className="fixed inset-0 bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={40} /></div>;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#bc8a5f] touch-none">
-      <div className="absolute inset-0 z-0 shadow-inner pointer-events-none" style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/cork-board.png')`, backgroundColor: '#bc8a5f' }} />
-      
-      {/* 1 - بنر التاريخ العلوي المطور والمستجيب */}
-      <div className="absolute top-6 left-0 right-0 z-[1000] flex justify-center px-4">
-        <div className="bg-white/95 backdrop-blur-md px-3 py-2 rounded-[2rem] shadow-2xl flex items-center gap-2 border border-white/20 pointer-events-auto">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full active:scale-90 transition-transform"><ChevronLeft size={20}/></button>
-          <div className="h-6 w-[1px] bg-stone-200 mx-1" />
-          <button onClick={() => changeDay(-1)} className="p-2 hover:bg-stone-50 rounded-full text-stone-400 active:scale-90 transition-transform"><ArrowLeft size={18}/></button>
-          
-          <div className="relative flex items-center px-2 min-w-[100px] justify-center cursor-pointer">
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-            <span className="font-black text-xs uppercase tracking-tighter text-stone-800">
-              {new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#F8F9FA] pb-32">
+      {/* Header */}
+      <div className="bg-white px-6 pt-12 pb-6 rounded-b-[3rem] shadow-sm border-b border-stone-100">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => navigate('/board')} className="p-3 bg-stone-100 rounded-full active:scale-95 transition-transform">
+            <ChevronLeft size={24} className="text-stone-600" />
+          </button>
+          <h1 className="text-xl font-black text-stone-800 uppercase tracking-tighter">My Calendar</h1>
+          <button onClick={() => setIsAddModalOpen(true)} className="p-3 bg-stone-900 text-white rounded-full active:scale-95 shadow-lg">
+            <Plus size={24} />
+          </button>
+        </div>
 
-          <button onClick={() => changeDay(1)} className="p-2 hover:bg-stone-50 rounded-full text-stone-400 active:scale-90 transition-transform"><ArrowRight size={18}/></button>
+        {/* Date Selector */}
+        <div className="flex items-center justify-between bg-stone-50 p-2 rounded-2xl">
+          <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))} className="p-2"><ChevronLeft size={20}/></button>
+          <div className="text-center">
+            <p className="text-[10px] font-black uppercase text-stone-400 tracking-widest leading-none">
+              {selectedDate.toLocaleDateString('en-US', { year: 'numeric' })}
+            </p>
+            <p className="text-lg font-black text-stone-800">
+              {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} className="p-2"><ChevronRight size={20}/></button>
         </div>
       </div>
 
-      <motion.div 
-        drag dragConstraints={{ left: -window.innerWidth, right: 0, top: -window.innerHeight, bottom: 0 }}
-        className="w-[200vw] h-[200vh] relative cursor-move z-10"
-      >
-        {elements.map((el) => (
-          <motion.div
-            key={el.id} drag dragMomentum={false}
-            onDragEnd={(_, info) => handleDragEnd(el.id, info)}
-            animate={{ x: el.x, y: el.y, rotate: el.rotate }}
-            className="absolute p-6 z-20"
-          >
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none drop-shadow-md">
-              <div className="w-5 h-5 bg-red-600 rounded-full border-b-4 border-red-800" />
-              <div className="w-0.5 h-4 bg-stone-400 mx-auto -mt-1" />
-            </div>
+      {/* Events List */}
+      <div className="px-6 mt-8 space-y-4">
+        <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Today's Schedule</p>
+        
+        <AnimatePresence mode='popLayout'>
+          {filteredEvents.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center bg-white rounded-[2rem] border-2 border-dashed border-stone-200">
+              <CalendarIcon className="mx-auto text-stone-200 mb-2" size={40} />
+              <p className="text-stone-400 font-bold text-sm italic">لا يوجد أحداث مجدولة لهذا اليوم</p>
+            </motion.div>
+          ) : (
+            filteredEvents.map((event) => (
+              <motion.div 
+                key={event.id}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 20, opacity: 0 }}
+                className="bg-white p-5 rounded-[2rem] shadow-sm border border-stone-100 flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className={cn("w-3 h-12 rounded-full", COLORS.find(c => c.id === event.color)?.bg || 'bg-blue-500')} />
+                  <div>
+                    <h3 className="font-black text-stone-800 leading-tight">{event.title}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-stone-400"><Clock size={12}/> {event.time}</span>
+                      {event.reminder && <Bell size={10} className="text-amber-500" />}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => deleteEvent(event.id)} className="p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button>
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
+      </div>
 
-            <div className={cn(
-              "relative shadow-xl transition-all flex flex-col items-center",
-              el.type === 'note' ? "bg-[#fff9c4] p-5 pt-12 rounded-sm" : "bg-white p-2 pb-12 border-[8px] border-white shadow-lg"
-            )}
-            style={{ width: el.type === 'note' ? 'auto' : '220px', minWidth: el.type === 'note' ? '160px' : 'none', maxWidth: '280px' }}>
-              {el.type === 'note' ? (
-                <textarea
-                  className="w-full bg-transparent border-none outline-none resize-none text-stone-800 text-xl font-bold leading-tight pointer-events-auto"
-                  style={{ fontFamily: '"Indie Flower", cursive', minHeight: '80px' }}
-                  defaultValue={el.content}
-                  onPointerDown={(e) => e.stopPropagation()} 
-                  onChange={(e) => {
-                    e.target.style.height = 'auto';
-                    e.target.style.height = e.target.scrollHeight + 'px';
-                  }}
-                  onBlur={(e) => {
-                    const updated = elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i);
-                    updateDoc(boardDocRef, { elements: updated });
-                  }}
-                />
-              ) : (
-                <img src={el.content} className="w-full h-auto block rounded-sm pointer-events-none" alt="" />
-              )}
-              
-              {/* 3 - أيقونات التحكم مع ربط التقويم المباشر */}
-              <div className="absolute -right-12 top-2 flex flex-col gap-2 scale-90 origin-left pointer-events-auto">
-                <button onClick={(e) => { e.stopPropagation(); updateDoc(boardDocRef, { elements: arrayRemove(el) }); }} className="p-2.5 bg-white text-red-500 rounded-full shadow-xl border border-stone-100 active:scale-90"><Trash2 size={16}/></button>
-                <button onClick={(e) => { e.stopPropagation(); }} className={cn("p-2.5 rounded-full shadow-xl border border-stone-100", el.alertEnabled ? "bg-blue-600 text-white" : "bg-white text-blue-500")}>
-                  {el.alertEnabled ? <Bell size={16}/> : <BellOff size={16}/>}
-                </button>
-                {/* فتح صفحة إضافة حدث مع بيانات النوتة */}
-                <button onClick={(e) => { 
-                  e.stopPropagation(); 
-                  navigate('/calendar/add', { state: { initialTitle: el.type === 'note' ? el.content : 'Pinned Photo', date: selectedDate } }); 
-                }} className="p-2.5 bg-white text-emerald-500 rounded-full shadow-xl border border-stone-100 active:scale-90">
-                  <Calendar size={16}/>
+      {/* Add Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAddModalOpen(false)} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative w-full max-w-md bg-white rounded-t-[3rem] sm:rounded-[3rem] p-8 shadow-2xl">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-stone-800 tracking-tighter italic">NEW EVENT</h2>
+                <button onClick={() => setIsAddModalOpen(false)} className="p-2 bg-stone-100 rounded-full"><X size={20}/></button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-2 px-1">What's the plan?</label>
+                  <input 
+                    type="text" 
+                    value={newEvent.title}
+                    onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                    placeholder="Meeting, Gym, Birthday..."
+                    className="w-full bg-stone-50 border-none rounded-2xl p-4 text-stone-800 font-bold placeholder:text-stone-300 focus:ring-2 focus:ring-stone-900 transition-all"
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-2 px-1 text-right">Time</label>
+                    <input type="time" value={newEvent.time} onChange={(e) => setNewEvent({...newEvent, time: e.target.value})} className="w-full bg-stone-50 rounded-2xl p-4 font-bold text-stone-800 border-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-2 px-1 text-right">Repeat</label>
+                    <select value={newEvent.repeat} onChange={(e) => setNewEvent({...newEvent, repeat: e.target.value})} className="w-full bg-stone-50 rounded-2xl p-4 font-bold text-stone-800 border-none appearance-none">
+                      <option value="none">Once</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-3 px-1">Tag Color</label>
+                  <div className="flex gap-3">
+                    {COLORS.map((c) => (
+                      <button 
+                        key={c.id} 
+                        onClick={() => setNewEvent({...newEvent, color: c.id})}
+                        className={cn("w-8 h-8 rounded-full border-4 transition-all", c.bg, newEvent.color === c.id ? "border-stone-900 scale-125" : "border-transparent opacity-50")}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-stone-50 p-4 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <Bell className={newEvent.reminder ? "text-amber-500" : "text-stone-300"} size={20} />
+                    <span className="font-bold text-stone-700 text-sm">Smart Notification</span>
+                  </div>
+                  <button 
+                    onClick={() => setNewEvent({...newEvent, reminder: !newEvent.reminder})}
+                    className={cn("w-12 h-6 rounded-full transition-all relative", newEvent.reminder ? "bg-stone-900" : "bg-stone-200")}
+                  >
+                    <div className={cn("absolute top-1 w-4 h-4 bg-white rounded-full transition-all", newEvent.reminder ? "right-1" : "left-1")} />
+                  </button>
+                </div>
+
+                <button onClick={handleAddEvent} className="w-full py-5 bg-stone-900 text-white rounded-2xl font-black tracking-widest uppercase shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                  <Check size={20} strokeWidth={3} />
+                  Save Event
                 </button>
               </div>
-            </div>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[92%] max-w-sm pointer-events-auto">
-        <div className="bg-stone-900/95 backdrop-blur-3xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
-          <button onClick={() => addNewElement('note')} className="h-14 flex-1 mr-3 bg-yellow-400 text-stone-900 rounded-full font-black text-xs flex items-center justify-center gap-2 active:scale-95 shadow-lg">
-            <Plus size={20} strokeWidth={3} />
-            <span className="tracking-tighter uppercase">ADD NOTE</span>
-          </button>
-          
-          <button onClick={() => fileInputRef.current?.click()} className="h-14 w-14 bg-stone-800 text-white rounded-full flex items-center justify-center active:scale-95 border border-white/5 shadow-inner">
-            <ImageIcon size={22} />
-          </button>
-
-          <button onClick={() => toast.success('Syncing with Cloud...')} className="h-14 w-14 ml-3 bg-white text-stone-900 rounded-full flex items-center justify-center active:scale-95 shadow-lg">
-            <Save size={22} />
-          </button>
-        </div>
-      </div>
-
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap');`}</style>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
