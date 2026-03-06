@@ -14,49 +14,48 @@ const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
 export default function BoardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   
   const [elements, setElements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [scale] = useState(1);
+  
+  // نظام التاريخ اليومي
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   const userId = auth.currentUser?.uid || "guest";
-  const boardDocRef = doc(db, "boards", userId);
+  // المسار الآن يعتمد على التاريخ ليكون البورد يومياً
+  const boardDocRef = doc(db, "boards", `${userId}_${selectedDate}`);
 
   useEffect(() => {
+    setLoading(true);
     const unsub = onSnapshot(boardDocRef, (d) => {
-      if (d.exists()) setElements(d.data().elements || []);
+      if (d.exists()) {
+        setElements(d.data().elements || []);
+      } else {
+        setElements([]);
+      }
       setLoading(false);
     });
     return () => unsub();
-  }, [userId]);
+  }, [selectedDate, userId]);
 
-  // إصلاح: إضافة العنصر في مركز الشاشة المعروض حالياً
   const addNewElement = async (type: 'note' | 'image', content: string = '') => {
-    // حساب المركز النسبي بناءً على تحريك البورد الحالي (Offset)
-    const centerX = -offset.x;
-    const centerY = -offset.y;
-
     const newEl = {
       id: `${type === 'note' ? 'n' : 'i'}_${Date.now()}`,
       type,
       content,
-      x: centerX, 
-      y: centerY,
-      rotate: Math.floor(Math.random() * 6) - 3, // ميلان خفيف للجمالية
-      alertEnabled: false // نظام التنبيهات المدمج
+      x: 100, // وضع افتراضي قريب من المركز
+      y: 100,
+      rotate: Math.floor(Math.random() * 6) - 3,
+      alertEnabled: false 
     };
 
     try {
-      await updateDoc(boardDocRef, {
-        elements: arrayUnion(newEl)
-      });
-      toast.success(type === 'note' ? 'Idea Added' : 'Image Added');
+      await updateDoc(boardDocRef, { elements: arrayUnion(newEl) });
     } catch (e) {
-      // إذا لم يكن المستند موجوداً
       await setDoc(boardDocRef, { elements: [newEl] });
     }
+    toast.success(type === 'note' ? 'Note Added' : 'Image Added');
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,15 +75,6 @@ export default function BoardPage() {
     await updateDoc(boardDocRef, { elements: updated });
   };
 
-  const toggleAlert = async (id: string) => {
-    const updated = elements.map(el => 
-      el.id === id ? { ...el, alertEnabled: !el.alertEnabled } : el
-    );
-    await updateDoc(boardDocRef, { elements: updated });
-    const el = updated.find(i => i.id === id);
-    toast(el.alertEnabled ? 'Alert Activated' : 'Alert Disabled', { icon: el.alertEnabled ? '🔔' : '🔕' });
-  };
-
   if (loading) return <div className="fixed inset-0 bg-[#bc8a5f] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
 
   return (
@@ -97,18 +87,33 @@ export default function BoardPage() {
         }}
       />
       
-      <button onClick={() => navigate(-1)} className="absolute top-6 left-6 z-[100] p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95">
-        <ChevronLeft size={24} />
-      </button>
+      {/* Header مع اختيار التاريخ */}
+      <div className="absolute top-6 left-6 right-6 z-[100] flex justify-between items-center">
+        <button onClick={() => navigate(-1)} className="p-3 bg-white/90 rounded-2xl shadow-xl active:scale-95">
+          <ChevronLeft size={24} />
+        </button>
+        <div className="bg-white/90 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2">
+          <Calendar size={18} className="text-stone-500" />
+          <input 
+            type="date" 
+            value={selectedDate} 
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-transparent font-black text-xs outline-none text-stone-800"
+          />
+        </div>
+      </div>
 
-      {/* البورد اللانهائي مع دعم السحب بالأصابع */}
+      {/* البورد بمقاس ضعفين حجم الشاشة فقط */}
       <motion.div 
-        ref={containerRef}
         drag
-        dragConstraints={{ left: -3000, right: 3000, top: -3000, bottom: 3000 }}
-        onDrag={(e, info) => setOffset({ x: info.point.x, y: info.point.y })}
-        className="w-[6000px] h-[6000px] relative cursor-move"
-        initial={{ x: -2000, y: -2000 }}
+        dragConstraints={{ 
+          left: -window.innerWidth, 
+          right: 0, 
+          top: -window.innerHeight, 
+          bottom: 0 
+        }}
+        className="w-[200vw] h-[200vh] relative cursor-move"
+        style={{ x: offset.x, y: offset.y }}
       >
         {elements.map((el) => (
           <motion.div
@@ -116,21 +121,20 @@ export default function BoardPage() {
             drag
             dragMomentum={false}
             onDragEnd={(_, info) => handleDragEnd(el.id, info)}
-            animate={{ x: el.x + 3000, y: el.y + 3000, rotate: el.rotate }}
+            animate={{ x: el.x, y: el.y, rotate: el.rotate }}
             className="absolute cursor-grab active:cursor-grabbing p-4 z-10"
           >
-            {/* الدبوس الأحمر */}
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[80] pointer-events-none">
               <div className="w-5 h-5 bg-red-600 rounded-full shadow-lg border-b-4 border-red-800" />
             </div>
 
             <div className={cn(
               "relative shadow-2xl transition-all",
-              el.type === 'note' ? "bg-[#fff9c4] p-6 pt-12 min-w-[220px] max-w-[280px]" : "bg-white p-2 pb-14 border-8 border-white shadow-xl"
+              el.type === 'note' ? "bg-[#fff9c4] p-6 pt-12 min-w-[200px] max-w-[260px]" : "bg-white p-2 pb-12 border-8 border-white shadow-xl"
             )}>
               {el.type === 'note' ? (
                 <textarea
-                  className="w-full bg-transparent border-none outline-none resize-none text-stone-800 text-xl font-bold font-serif leading-tight"
+                  className="w-full bg-transparent border-none outline-none resize-none text-stone-800 text-lg font-bold font-serif leading-tight"
                   defaultValue={el.content}
                   onBlur={(e) => {
                     const updated = elements.map(i => i.id === el.id ? {...i, content: e.target.value} : i);
@@ -138,22 +142,18 @@ export default function BoardPage() {
                   }}
                 />
               ) : (
-                <img src={el.content} className="w-56 h-auto block rounded-sm" alt="" />
+                <img src={el.content} className="w-48 h-auto block rounded-sm" alt="" />
               )}
               
-              {/* أدوات التحكم المتطورة داخل العنصر */}
-              <div className="absolute -right-4 -top-4 flex flex-col gap-2 z-[90]">
-                <button onClick={() => updateDoc(boardDocRef, { elements: arrayRemove(el) })} className="bg-white text-red-600 p-2.5 rounded-full shadow-xl border border-stone-100 active:scale-90"><Trash2 size={16} /></button>
-                <button onClick={() => toggleAlert(el.id)} className={cn("p-2.5 rounded-full shadow-xl border border-stone-100 active:scale-90", el.alertEnabled ? "bg-blue-600 text-white" : "bg-white text-stone-400")}>
-                  {el.alertEnabled ? <Bell size={16} /> : <BellOff size={16} />}
-                </button>
+              <div className="absolute -right-3 -top-3 flex flex-col gap-2 z-[90]">
+                <button onClick={() => updateDoc(boardDocRef, { elements: arrayRemove(el) })} className="bg-white text-red-600 p-2 rounded-full shadow-lg border border-stone-100 active:scale-90"><Trash2 size={14} /></button>
               </div>
             </div>
           </motion.div>
         ))}
       </motion.div>
 
-      {/* البنر السفلي - توحيد القياسات وتعديل وظيفة الإضافة */}
+      {/* البنر السفلي مع تعديل كلمة ADD NOTE */}
       <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[200] w-[92%] max-w-sm">
         <div className="bg-stone-900/95 backdrop-blur-3xl rounded-[3rem] p-3 flex items-center justify-between shadow-2xl border border-white/10">
           <button 
@@ -161,7 +161,7 @@ export default function BoardPage() {
             className="h-14 flex-1 mr-3 bg-yellow-400 text-stone-900 rounded-full font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all"
           >
             <Plus size={20} strokeWidth={3} />
-            <span className="tracking-tighter">ADD IDEA</span>
+            <span className="tracking-tighter uppercase">ADD NOTE</span>
           </button>
           
           <button 
@@ -172,7 +172,7 @@ export default function BoardPage() {
           </button>
 
           <button 
-            onClick={() => toast.success('Syncing with Cloud...')} 
+            onClick={() => toast.success('Saved to ' + selectedDate)} 
             className="h-14 w-14 ml-3 bg-white text-stone-900 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg"
           >
             <Save size={22} />
